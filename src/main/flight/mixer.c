@@ -355,7 +355,9 @@ static void applyRPMLimiter(void)
         float PIDOutput = 0;
         float rcCommandThrottle = (rcCommand[THROTTLE]-1000)/1000.0f;
 
-        if (mixerConfig()->rpm_linearization) {
+        //Street League customization
+        //if (mixerConfig()->rpm_linearization) {
+        if (true) {
             //scales rpm setpoint between idle rpm and rpm limit based on throttle percent
             //Street League customization
             //RPM_GOVENOR_LIMIT = ((mixerConfig()->govenor_rpm_limit - mixerConfig()->govenor_idle_rpm))*100.0f*(rcCommandThrottle) + mixerConfig()->govenor_idle_rpm * 100.0f;
