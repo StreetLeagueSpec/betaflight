@@ -322,7 +322,7 @@ void mixerInitProfile(void)
 mixerRuntime.govenorExpectedThrottleLimit = 1.0f;
 //Street League customization
 mixerRuntime.govenorPGain = 20.0f * 0.0000015f;
-mixerRuntime.govenorIGain = 15.0f * pidGetDT();
+mixerRuntime.govenorIGain = 15.0f * 0.0001f * pidGetDT();
 mixerRuntime.govenorDGain = 10.0f * 0.00000003f * pidGetPidFrequency();
 mixerRuntime.govenorAccelerationLimit = 60.0f * 1000.0f * pidGetDT();
 mixerRuntime.govenorDecelerationLimit = 60.0f * 1000.0f * pidGetDT();
