@@ -22,19 +22,18 @@
 
 #include "common/time.h"
 
-#define TASK_ALTITUDE_RATE_HZ 100
+#define POSITION_DEFAULT_ALT_NUM_SATS_GPS_USE 10
+#define POSITION_DEFAULT_ALT_NUM_SATS_BARO_FALLBACK 7
 
 typedef struct positionConfig_s {
-    uint8_t altitude_source;
-    uint8_t altitude_prefer_baro;
-    uint16_t altitude_lpf;                // lowpass cutoff (value / 100) Hz for altitude smoothing
-    uint16_t altitude_d_lpf;              // lowpass for (value / 100) Hz for altitude derivative smoothing
+    uint8_t altSource;
+    uint8_t altNumSatsGpsUse;
+    uint8_t altNumSatsBaroFallback;
 } positionConfig_t;
 
 PG_DECLARE(positionConfig_t, positionConfig);
 
-void calculateEstimatedAltitude(void);
-void positionInit(void);
+bool isAltitudeOffset(void);
+void calculateEstimatedAltitude(timeUs_t currentTimeUs);
 int32_t getEstimatedAltitudeCm(void);
-float getAltitude(void);
 int16_t getEstimatedVario(void);

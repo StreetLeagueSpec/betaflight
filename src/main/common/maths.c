@@ -19,7 +19,6 @@
  */
 
 #include <stdint.h>
-#include <stdlib.h>
 #include <math.h>
 
 #include "platform.h"
@@ -118,7 +117,7 @@ int gcd(int num, int denom)
 
 int32_t applyDeadband(const int32_t value, const int32_t deadband)
 {
-    if (abs(value) < deadband) {
+    if (ABS(value) < deadband) {
         return 0;
     }
 
@@ -168,15 +167,13 @@ float degreesToRadians(int16_t degrees)
     return degrees * RAD;
 }
 
-int scaleRange(int x, int srcFrom, int srcTo, int destFrom, int destTo)
-{
+int scaleRange(int x, int srcFrom, int srcTo, int destFrom, int destTo) {
     long int a = ((long int) destTo - (long int) destFrom) * ((long int) x - (long int) srcFrom);
     long int b = (long int) srcTo - (long int) srcFrom;
     return (a / b) + destFrom;
 }
 
-float scaleRangef(float x, float srcFrom, float srcTo, float destFrom, float destTo)
-{
+float scaleRangef(float x, float srcFrom, float srcTo, float destFrom, float destTo) {
     float a = (destTo - destFrom) * (x - srcFrom);
     float b = srcTo - srcFrom;
     return (a / b) + destFrom;
@@ -332,17 +329,14 @@ void arraySubInt32(int32_t *dest, int32_t *array1, int32_t *array2, int count)
     }
 }
 
-int16_t qPercent(fix12_t q)
-{
+int16_t qPercent(fix12_t q) {
     return (100 * q) >> 12;
 }
 
-int16_t qMultiply(fix12_t q, int16_t input)
-{
+int16_t qMultiply(fix12_t q, int16_t input) {
     return (input *  q) >> 12;
 }
 
-fix12_t  qConstruct(int16_t num, int16_t den)
-{
+fix12_t  qConstruct(int16_t num, int16_t den) {
     return (num << 12) / den;
 }

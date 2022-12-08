@@ -18,10 +18,9 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <math.h>
+#include "stdbool.h"
+#include "stdint.h"
+#include "math.h"
 
 #include "platform.h"
 
@@ -47,9 +46,6 @@
 #include "pg/pg_ids.h"
 
 #include "scheduler/scheduler.h"
-#ifdef USE_BATTERY_CONTINUE
-#include "pg/stats.h"
-#endif
 
 #include "sensors/battery.h"
 
@@ -76,14 +72,13 @@ static uint16_t batteryCriticalVoltage;
 static uint16_t batteryWarningHysteresisVoltage;
 static uint16_t batteryCriticalHysteresisVoltage;
 static lowVoltageCutoff_t lowVoltageCutoff;
-
+//
 static currentMeter_t currentMeter;
 static voltageMeter_t voltageMeter;
 
 static batteryState_e batteryState;
 static batteryState_e voltageState;
 static batteryState_e consumptionState;
-static float wattHoursDrawn;
 
 #ifndef DEFAULT_CURRENT_METER_SOURCE
 #ifdef USE_VIRTUAL_CURRENT_METER
@@ -184,7 +179,7 @@ static void updateBatteryBeeperAlert(void)
 
 static bool isVoltageStable(void)
 {
-    return abs(voltageMeter.displayFiltered - voltageMeter.unfiltered) <= VBAT_STABLE_MAX_DELTA;
+    return ABS(voltageMeter.displayFiltered - voltageMeter.unfiltered) <= VBAT_STABLE_MAX_DELTA;
 }
 
 static bool isVoltageFromBat(void)
@@ -198,6 +193,7 @@ static bool isVoltageFromBat(void)
 
 void batteryUpdatePresence(void)
 {
+
 
     if ((voltageState == BATTERY_NOT_PRESENT || voltageState == BATTERY_INIT) && isVoltageFromBat() && isVoltageStable()) {
         // Battery has just been connected - calculate cells, warning voltages and reset state
@@ -233,16 +229,7 @@ void batteryUpdatePresence(void)
         batteryCriticalVoltage = 0;
         batteryWarningHysteresisVoltage = 0;
         batteryCriticalHysteresisVoltage = 0;
-        wattHoursDrawn = 0.0;
     }
-}
-
-void batteryUpdateWhDrawn(void) 
-{
-    static int32_t mAhDrawnPrev = 0;
-    const int32_t mAhDrawnCurrent = getMAhDrawn();
-    wattHoursDrawn += voltageMeter.displayFiltered * (mAhDrawnCurrent - mAhDrawnPrev) / 100000.0f;
-    mAhDrawnPrev = mAhDrawnCurrent;
 }
 
 static void batteryUpdateVoltageState(void)
@@ -327,7 +314,6 @@ void batteryUpdateStates(timeUs_t currentTimeUs)
     batteryUpdateConsumptionState();
     batteryUpdateLVC(currentTimeUs);
     batteryState = MAX(voltageState, consumptionState);
-    batteryUpdateWhDrawn();
 }
 
 const lowVoltageCutoff_t *getLowVoltageCutoff(void)
@@ -364,11 +350,6 @@ void batteryInit(void)
     //
     batteryState = BATTERY_INIT;
     batteryCellCount = 0;
-
-    //
-    // Consumption
-    //
-    wattHoursDrawn = 0;
 
     //
     // voltage
@@ -549,8 +530,7 @@ bool isAmperageConfigured(void)
     return batteryConfig()->currentMeterSource != CURRENT_METER_NONE;
 }
 
-int32_t getAmperage(void)
-{
+int32_t getAmperage(void) {
     return currentMeter.amperage;
 }
 
@@ -561,29 +541,5 @@ int32_t getAmperageLatest(void)
 
 int32_t getMAhDrawn(void)
 {
-#ifdef USE_BATTERY_CONTINUE
-    return currentMeter.mAhDrawn + currentMeter.mAhDrawnOffset;
-#else
     return currentMeter.mAhDrawn;
-#endif
-}
-
-#ifdef USE_BATTERY_CONTINUE
-bool hasUsedMAh(void)
-{
-    return batteryConfig()->isBatteryContinueEnabled
-          && !(ARMING_FLAG(ARMED) || ARMING_FLAG(WAS_EVER_ARMED)) && (getBatteryState() == BATTERY_OK)
-          && getBatteryAverageCellVoltage() < batteryConfig()->vbatfullcellvoltage
-          && statsConfig()->stats_mah_used > 0;
-}
-
-void setMAhDrawn(uint32_t mAhDrawn)
-{
-    currentMeter.mAhDrawnOffset = mAhDrawn;
-}
-#endif
-
-float getWhDrawn(void)
-{
-    return wattHoursDrawn;
 }

@@ -103,7 +103,7 @@ void sendRcDataToHid(void)
 #endif
 }
 
-bool cdcDeviceIsMayBeActive(void)
+bool cdcDeviceIsMayBeActive()
 {
     return usbDevConfig()->type == COMPOSITE && usbIsConnected() && (getBatteryState() == BATTERY_NOT_PRESENT || batteryConfig()->voltageMeterSource == VOLTAGE_METER_NONE);
 }

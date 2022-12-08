@@ -18,7 +18,6 @@
 
 extern "C" {
     #include "common/encoding.h"
-    #include "common/utils.h"
 }
 
 #include "unittest_macros.h"
@@ -49,7 +48,7 @@ TEST(EncodingTest, ZigzagEncodingTest)
         { 2147483647, 4294967294},
         {-2147483648, 4294967295},
     };
-    int expectationCount = ARRAYLEN(expectations);
+    int expectationCount = sizeof(expectations) / sizeof(expectations[0]);
 
     // expect
 
@@ -68,7 +67,7 @@ TEST(EncodingTest, FloatToIntEncodingTest)
         {2.0, 0x40000000}, // Exponent should be in the top bits
         {4.5, 0x40900000}
     };
-    int expectationCount = ARRAYLEN(expectations);
+    int expectationCount = sizeof(expectations) / sizeof(expectations[0]);
 
     // expect
 

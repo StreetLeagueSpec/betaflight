@@ -36,8 +36,7 @@ extern "C" {
     void schedulerIgnoreTaskStateTime(void) {}
 }
 
-TEST(WS2812, updateDMABuffer)
-{
+TEST(WS2812, updateDMABuffer) {
     // given
     rgbColor24bpp_t color1 = { .raw = {0xFF,0xAA,0x55} };
 
@@ -79,14 +78,12 @@ TEST(WS2812, updateDMABuffer)
 }
 
 extern "C" {
-rgbColor24bpp_t* hsvToRgb24(const hsvColor_t *c)
-{
+rgbColor24bpp_t* hsvToRgb24(const hsvColor_t *c) {
     UNUSED(c);
     return NULL;
 }
 
-bool ws2811LedStripHardwareInit(ioTag_t ioTag)
-{
+bool ws2811LedStripHardwareInit(ioTag_t ioTag) {
     UNUSED(ioTag);
 
     return true;

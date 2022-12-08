@@ -33,8 +33,6 @@
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
 
-#include "common/utils.h"
-
 #include "drivers/timer.h"
 #include "drivers/transponder_ir.h"
 #include "drivers/system.h"
@@ -63,7 +61,7 @@ static bool transponderRepeat = false;
 // timers
 static timeUs_t nextUpdateAtUs = 0;
 
-#define JITTER_DURATION_COUNT ARRAYLEN(jitterDurations)
+#define JITTER_DURATION_COUNT (sizeof(jitterDurations) / sizeof(uint8_t))
 static uint8_t jitterDurations[] = {0,9,4,8,3,9,6,7,1,6,9,7,8,2,6};
 
 const transponderRequirement_t transponderRequirements[TRANSPONDER_PROVIDER_COUNT] = {
@@ -138,8 +136,7 @@ void transponderUpdateData(void)
     transponderIrUpdateData(transponderConfig()->data);
 }
 
-void transponderTransmitOnce(void)
-{
+void transponderTransmitOnce(void) {
 
     if (!transponderInitialised) {
         return;

@@ -84,9 +84,6 @@ struct {
     // Micron N25Q128
     // Datasheet: https://www.micron.com/-/media/client/global/documents/products/data-sheet/nor-flash/serial-nor/n25q/n25q_128mb_1_8v_65nm.pdf
     { 0x20ba18, 108, 54, 256, 256 },
-    // Winbond W25Q80
-    // Datasheet: https://www.winbond.com/resource-files/w25q80dv%20dl_revh_10022015.pdf
-    { 0xEF4014, 104, 50, 16, 256 },
     // Winbond W25Q16
     // Datasheet: https://www.winbond.com/resource-files/w25q16dv_revi_nov1714_web.pdf
     { 0xEF4015, 104, 50, 32, 256 },
@@ -358,13 +355,6 @@ static uint32_t m25p16_pageProgramContinue(flashDevice_t *fdevice, uint8_t const
     segments[DATA1].u.buffers.txData = (uint8_t *)buffers[0];
     segments[DATA1].len = bufferSizes[0];
     fdevice->callbackArg = bufferSizes[0];
-
-    /* As the DATA2 segment may be used as the terminating segment, the rxData and txData may be overwritten
-     * with a link to the following transaction (u.link.dev and u.link.segments respectively) so ensure that
-     * rxData is reinitialised otherwise it will remain pointing at a chained u.link.segments structure which
-     * would result in it being corrupted.
-     */
-    segments[DATA2].u.buffers.rxData = (uint8_t *)NULL;
 
     if (bufferCount == 1) {
         segments[DATA1].negateCS = true;

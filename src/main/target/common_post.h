@@ -24,63 +24,6 @@
 
 #include "build/version.h"
 
-
-/*
-    BEGIN HARDWARE INCLUSIONS
-    
-    Simplified options for the moment, i.e. adding USE_MAG or USE_BARO and the entire driver suite is added.
-    In the future we can move to specific drivers being added only - to save flash space.
-*/
-
-#if defined(USE_MAG) && !defined(USE_FAKE_MAG)
-#define USE_MAG_DATA_READY_SIGNAL
-#define USE_MAG_HMC5883
-#define USE_MAG_SPI_HMC5883
-#define USE_MAG_QMC5883
-#define USE_MAG_LIS3MDL
-#define USE_MAG_AK8963
-#define USE_MAG_MPU925X_AK8963
-#define USE_MAG_SPI_AK8963
-#define USE_MAG_AK8975
-#endif
-
-#if defined(USE_BARO) && !defined(USE_FAKE_BARO)
-#define USE_BARO_MS5611
-#define USE_BARO_SPI_MS5611
-#define USE_BARO_BMP280
-#define USE_BARO_SPI_BMP280
-#define USE_BARO_BMP388
-#define USE_BARO_SPI_BMP388
-#define USE_BARO_LPS
-#define USE_BARO_SPI_LPS
-#define USE_BARO_QMP6988
-#define USE_BARO_SPI_QMP6988
-#define USE_BARO_DPS310
-#define USE_BARO_SPI_DPS310
-#define USE_BARO_BMP085
-#endif
-
-#if defined(USE_RX_CC2500)
-
-#define USE_RX_FRSKY_SPI_D
-#define USE_RX_FRSKY_SPI_X
-#define USE_RX_SFHSS_SPI
-#define USE_RX_REDPINE_SPI
-#define USE_RX_FRSKY_SPI_TELEMETRY
-#define USE_RX_CC2500_SPI_PA_LNA
-#define USE_RX_CC2500_SPI_DIVERSITY
-
-#define USE_RX_FLYSKY
-#define USE_RX_FLYSKY_SPI_LED
-
-#define USE_RX_SPEKTRUM
-#define USE_RX_SPEKTRUM_TELEMETRY
-
-#endif // defined(USE_RX_CC2500)
-
-
-/* END HARDWARE INCLUSIONS */
-
 #if defined(USE_VTX_RTC6705_SOFTSPI)
 #define USE_VTX_RTC6705
 #endif
@@ -104,7 +47,8 @@
 #endif
 #endif
 
-// Remove USE_BARO_BMP280 and USE_BARO_MS5611 if USE_I2C is not defined.
+// XXX Remove USE_BARO_BMP280 and USE_BARO_MS5611 if USE_I2C is not defined.
+// XXX This should go away buy editing relevant target.h files
 #if !defined(USE_I2C)
 #if defined(USE_BARO_BMP280)
 #undef USE_BARO_BMP280
@@ -112,6 +56,16 @@
 #if defined(USE_BARO_MS5611)
 #undef USE_BARO_MS5611
 #endif
+#endif
+
+#if !defined(USE_MAG)
+#undef USE_MAG_DATA_READY_SIGNAL
+#undef USE_MAG_HMC5883
+#undef USE_MAG_SPI_HMC5883
+#undef USE_MAG_QMC5883
+#undef USE_MAG_LIS3MDL
+#undef USE_MAG_AK8963
+#undef USE_MAG_SPI_AK8963
 #endif
 
 #if !defined(USE_BARO) && !defined(USE_GPS)
@@ -122,7 +76,8 @@
 #define BARO_EOC_PIN NONE
 #endif
 
-#if !defined(USE_SERIALRX)
+
+#if !defined(USE_SERIAL_RX)
 #undef USE_SERIALRX_CRSF
 #undef USE_SERIALRX_IBUS
 #undef USE_SERIALRX_JETIEXBUS
@@ -165,10 +120,6 @@
 
 #if !defined(USE_TELEMETRY_CRSF) || !defined(USE_CMS)
 #undef USE_CRSF_CMS_TELEMETRY
-#endif
-
-#if !defined(USE_TELEMETRY_CRSF)
-#undef USE_CRSF_V3
 #endif
 
 #if !defined(USE_SERIALRX_JETIEXBUS)
@@ -214,7 +165,6 @@
 #undef USE_VTX_TRAMP
 #undef USE_VTX_SMARTAUDIO
 #undef USE_VTX_TABLE
-#undef USE_VTX_MSP
 #endif
 
 #if defined(USE_RX_FRSKY_SPI_D) || defined(USE_RX_FRSKY_SPI_X) || defined(USE_RX_REDPINE_SPI)
@@ -244,24 +194,18 @@
 #undef USE_ADC_INTERNAL
 #endif
 
-#ifdef USE_FLASH
-#define USE_FLASHFS
-#define USE_FLASH_TOOLS
-#endif
-
-#if (defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25Q128FV)) && !defined(USE_FLASH_M25P16)
+#if defined(USE_FLASH_W25M512)
+#define USE_FLASH_W25M
 #define USE_FLASH_M25P16
-#endif
-
-#if defined(USE_FLASH_W25M02G) && !defined(USE_FLASH_W25N01G)
-#define USE_FLASH_W25N01G
-#endif
-
-#if (defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25N01G)) && !defined(USE_FLASH_W25M)
 #define USE_FLASH_W25M
 #endif
 
-#if defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25M) || defined(USE_FLASH_W25N01G) || defined(USE_FLASH_W25Q128FV)
+#if defined(USE_FLASH_W25M02G)
+#define USE_FLASH_W25N01G
+#define USE_FLASH_W25M
+#endif
+
+#if defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25N01G)
 #define USE_FLASH_CHIP
 #endif
 
@@ -287,6 +231,10 @@
 #define USE_USB_ADVANCED_PROFILES
 #endif
 
+#if defined(USE_MAX7456)
+#define USE_OSD
+#endif
+
 #if !defined(USE_OSD)
 #undef USE_RX_LINK_QUALITY_INFO
 #undef USE_OSD_PROFILES
@@ -294,12 +242,16 @@
 #undef USE_RX_LINK_UPLINK_POWER
 #endif
 
+#if defined(USE_GPS_RESCUE)
+#define USE_GPS
+#endif
+
 // Generate USE_SPI_GYRO or USE_I2C_GYRO
 #if defined(USE_GYRO_L3G4200D) || defined(USE_GYRO_MPU3050) || defined(USE_GYRO_MPU6000) || defined(USE_GYRO_MPU6050) || defined(USE_GYRO_MPU6500)
 #define USE_I2C_GYRO
 #endif
 
-#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_BMI270)
+#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P)
 #define USE_SPI_GYRO
 #endif
 
@@ -312,13 +264,20 @@
 // Should be set to zero for generic targets to ensure USB is working
 // when unconfigured for targets with non-standard crystal.
 // Can be set at runtime with with CLI parameter 'system_hse_value'.
+#if !defined(STM32F4) || defined(USE_UNIFIED_TARGET)
 #define SYSTEM_HSE_VALUE 0
+#else
+#ifdef TARGET_XTAL_MHZ
+#define SYSTEM_HSE_VALUE TARGET_XTAL_MHZ
+#else
+#define SYSTEM_HSE_VALUE (HSE_VALUE/1000000U)
+#endif
+#endif // !STM32F4 || USE_UNIFIED_TARGET
 
 // Number of pins that needs pre-init
 #ifdef USE_SPI
 #ifndef SPI_PREINIT_COUNT
-// 2 x 8 (GYROx2, BARO, MAG, MAX, FLASHx2, RX)
-#define SPI_PREINIT_COUNT 16 
+#define SPI_PREINIT_COUNT 16 // 2 x 8 (GYROx2, BARO, MAG, MAX, FLASHx2, RX)
 #endif
 #endif
 
@@ -334,11 +293,6 @@
 #undef  USE_SERIAL_4WAY_BLHELI_INTERFACE
 #elif !defined(USE_SERIAL_4WAY_BLHELI_INTERFACE) && (defined(USE_SERIAL_4WAY_BLHELI_BOOTLOADER) || defined(USE_SERIAL_4WAY_SK_BOOTLOADER))
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
-#endif
-
-
-#if defined(USE_PWM) || defined(USE_DSHOT) || defined(USE_LED_STRIP) || defined(USE_TRANSPONDER) || defined(USE_BEEPER)
-#define USE_PWM_OUTPUT
 #endif
 
 #if !defined(USE_PWM_OUTPUT)
@@ -402,6 +356,8 @@
 
 #if defined(USE_TIMER_MGMT)
 #undef USED_TIMERS
+#else
+#undef USE_UNIFIED_TARGET
 #endif
 
 #if !defined(USE_RANGEFINDER)
@@ -453,9 +409,9 @@ extern uint8_t __config_end;
 #define USE_CUSTOM_DEFAULTS_ADDRESS
 #endif
 
-#if defined(USE_RX_EXPRESSLRS) && defined(STM32F411)
-#define RX_SPI_DEFAULT_PROTOCOL          RX_SPI_EXPRESSLRS
-#define RX_EXPRESSLRS_TIMER_INSTANCE     TIM5
+#if !defined(USE_EXTI)
+#undef USE_RX_SPI
+#undef USE_RANGEFINDER_HCSR04
 #endif
 
 #if defined(USE_RX_SPI) || defined (USE_SERIALRX_SRXL2)

@@ -25,7 +25,7 @@
 
 /* Include(s) -------------------------------------------------------------------------------------------------------*/
 
-#include <stdbool.h>
+#include "stdbool.h"
 #include <string.h>
 
 #include "platform.h"
@@ -672,14 +672,12 @@ SD_Error_t SD_WriteBlocks_DMA(uint64_t WriteAddress, uint32_t *buffer, uint32_t 
     return ErrorState;
 }
 
-SD_Error_t SD_CheckWrite(void)
-{
+SD_Error_t SD_CheckWrite(void) {
     if (SD_Handle.TXCplt != 0) return SD_BUSY;
     return SD_OK;
 }
 
-SD_Error_t SD_CheckRead(void)
-{
+SD_Error_t SD_CheckRead(void) {
     if (SD_Handle.RXCplt != 0) return SD_BUSY;
     return SD_OK;
 }
@@ -1218,7 +1216,7 @@ SD_Error_t SD_GetStatus(void)
     }
     else
     {
-        ErrorState = SD_ERROR;
+        ErrorState = SD_CARD_ERROR;
     }
 
     return ErrorState;
@@ -1707,8 +1705,7 @@ SD_Error_t SD_Init(void)
 /**
   * @brief  This function handles SD card interrupt request.
   */
-void SDMMC1_IRQHandler(void)
-{
+void SDMMC1_IRQHandler(void) {
     // Check for SDMMC1 interrupt flags
     if ((SDMMC1->STA & SDMMC_STA_DATAEND) != 0) {
         SDMMC1->ICR = SDMMC_ICR_DATAENDC;

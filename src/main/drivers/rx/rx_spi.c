@@ -92,12 +92,12 @@ void rxSpiSetNormalSpeedMhz(uint32_t mhz)
     spiNormalSpeedMhz = mhz;
 }
 
-void rxSpiNormalSpeed(void)
+void rxSpiNormalSpeed()
 {
     spiSetClkDivisor(dev, spiCalculateDivider(spiNormalSpeedMhz));
 }
 
-void rxSpiStartupSpeed(void)
+void rxSpiStartupSpeed()
 {
     spiSetClkDivisor(dev, spiCalculateDivider(RX_STARTUP_MAX_SPI_CLK_HZ));
 }

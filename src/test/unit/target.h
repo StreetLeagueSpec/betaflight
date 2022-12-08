@@ -33,7 +33,7 @@
 #define USE_BARO
 #define USE_GPS
 #define USE_DASHBOARD
-#define USE_SERIALRX
+#define USE_SERIAL_RX
 #define USE_RX_MSP
 #define USE_SERIALRX_CRSF       // Team Black Sheep Crossfire protocol
 #define USE_SERIALRX_SPEKTRUM   // DSM2 and DSMX protocol
@@ -54,7 +54,7 @@
 #define USE_TELEMETRY_SMARTPORT
 #define USE_LED_STRIP
 #define USE_LED_STRIP_STATUS_MODE
-#define USE_SERVOS
+// #define USE_SERVOS
 #define USE_TRANSPONDER
 #define USE_VCP
 #define USE_UART1

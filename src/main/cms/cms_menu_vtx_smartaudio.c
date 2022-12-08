@@ -198,7 +198,7 @@ void saUpdateStatusString(void)
     }
 }
 
-void saCmsResetOpmodel(void)
+void saCmsResetOpmodel()
 {
     // trigger data refresh in 'saCmsUpdate()'
     saCmsOpmodel = SACMS_OPMODEL_UNDEF;

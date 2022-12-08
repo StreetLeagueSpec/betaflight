@@ -71,15 +71,15 @@ static int srxlClearScreen(displayPort_t *displayPort, displayClearOption_e opti
     UNUSED(options);
     for (int row = 0; row < SPEKTRUM_SRXL_TEXTGEN_BUFFER_ROWS; row++) {
         for (int col= 0; col < SPEKTRUM_SRXL_TEXTGEN_BUFFER_COLS; col++) {
-            srxlWriteChar(displayPort, col, row, DISPLAYPORT_ATTR_NORMAL, ' ');
+            srxlWriteChar(displayPort, col, row, DISPLAYPORT_ATTR_NONE, ' ');
         }
     }
-    srxlWriteString(displayPort, 1, 0, DISPLAYPORT_ATTR_NORMAL, "BETAFLIGHT");
+    srxlWriteString(displayPort, 1, 0, DISPLAYPORT_ATTR_NONE, "BETAFLIGHT");
 
     if (displayPort->grabCount == 0) {
-        srxlWriteString(displayPort, 0, 2, DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT1);
-        srxlWriteString(displayPort, 2, 3, DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT2);
-        srxlWriteString(displayPort, 2, 4, DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT3);
+        srxlWriteString(displayPort, 0, 2, DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT1);
+        srxlWriteString(displayPort, 2, 3, DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT2);
+        srxlWriteString(displayPort, 2, 4, DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT3);
     }
     return 0;
 }
@@ -143,7 +143,7 @@ static const displayPortVTable_t srxlVTable = {
     .layerCopy = NULL,
 };
 
-static displayPort_t *displayPortSrxlInit(void)
+static displayPort_t *displayPortSrxlInit()
 {
     srxlDisplayPort.device = NULL;
     displayInit(&srxlDisplayPort, &srxlVTable, DISPLAYPORT_DEVICE_TYPE_SRXL);

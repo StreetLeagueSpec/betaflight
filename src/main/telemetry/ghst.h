@@ -26,13 +26,8 @@
 #include "common/time.h"
 
 #include "rx/ghst_protocol.h"
-#include "telemetry/msp_shared.h"
 
 void initGhstTelemetry(void);
 bool checkGhstTelemetryState(void);
-void setGhstTelemetryState(bool state);
 void handleGhstTelemetry(timeUs_t currentTimeUs);
 
-#if defined(USE_MSP_OVER_TELEMETRY)
-void ghstScheduleMspResponse(void);
-#endif

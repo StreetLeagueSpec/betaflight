@@ -43,7 +43,6 @@
 #include "pg/vcd.h"
 
 static displayPort_t mspDisplayPort;
-static serialPortIdentifier_e displayPortSerial;
 
 static int output(displayPort_t *displayPort, uint8_t cmd, uint8_t *buf, int len)
 {
@@ -55,12 +54,12 @@ static int output(displayPort_t *displayPort, uint8_t cmd, uint8_t *buf, int len
         return 0;
     }
 #endif
-    return mspSerialPush(displayPortSerial, cmd, buf, len, MSP_DIRECTION_REPLY, MSP_V1);
+    return mspSerialPush(displayPortProfileMsp()->displayPortSerial, cmd, buf, len, MSP_DIRECTION_REPLY);
 }
 
 static int heartbeat(displayPort_t *displayPort)
 {
-    uint8_t subcmd[] = { MSP_DP_HEARTBEAT };
+    uint8_t subcmd[] = { 0 };
 
     // heartbeat is used to:
     // a) ensure display is not released by MW OSD software
@@ -77,7 +76,7 @@ static int grab(displayPort_t *displayPort)
 
 static int release(displayPort_t *displayPort)
 {
-    uint8_t subcmd[] = { MSP_DP_RELEASE };
+    uint8_t subcmd[] = { 1 };
 
     return output(displayPort, MSP_DISPLAYPORT, subcmd, sizeof(subcmd));
 }
@@ -86,14 +85,14 @@ static int clearScreen(displayPort_t *displayPort, displayClearOption_e options)
 {
     UNUSED(options);
 
-    uint8_t subcmd[] = { MSP_DP_CLEAR_SCREEN };
+    uint8_t subcmd[] = { 2 };
 
     return output(displayPort, MSP_DISPLAYPORT, subcmd, sizeof(subcmd));
 }
 
 static bool drawScreen(displayPort_t *displayPort)
 {
-    uint8_t subcmd[] = { MSP_DP_DRAW_SCREEN };
+    uint8_t subcmd[] = { 4 };
     output(displayPort, MSP_DISPLAYPORT, subcmd, sizeof(subcmd));
 
     return 0;
@@ -114,10 +113,10 @@ static int writeString(displayPort_t *displayPort, uint8_t col, uint8_t row, uin
         len = MSP_OSD_MAX_STRING_LENGTH;
     }
 
-    buf[0] = MSP_DP_WRITE_STRING;
+    buf[0] = 3;
     buf[1] = row;
     buf[2] = col;
-    buf[3] = displayPortProfileMsp()->fontSelection[attr] & ~DISPLAYPORT_MSP_ATTR_BLINK & DISPLAYPORT_MSP_ATTR_MASK;
+    buf[3] = displayPortProfileMsp()->attrValues[attr] & ~DISPLAYPORT_MSP_ATTR_BLINK & DISPLAYPORT_MSP_ATTR_MASK;
 
     if (attr & DISPLAYPORT_ATTR_BLINK) {
         buf[3] |= DISPLAYPORT_MSP_ATTR_BLINK;
@@ -128,25 +127,13 @@ static int writeString(displayPort_t *displayPort, uint8_t col, uint8_t row, uin
     return output(displayPort, MSP_DISPLAYPORT, buf, len + 4);
 }
 
-static int writeSys(displayPort_t *displayPort, uint8_t col, uint8_t row, displayPortSystemElement_e systemElement)
-{
-    uint8_t syscmd[4];
-
-    syscmd[0] = MSP_DP_SYS;
-    syscmd[1] = row;
-    syscmd[2] = col;
-    syscmd[3] = systemElement;
-
-    return output(displayPort, MSP_DISPLAYPORT, syscmd, sizeof(syscmd));
-}
-
 static int writeChar(displayPort_t *displayPort, uint8_t col, uint8_t row, uint8_t attr, uint8_t c)
 {
     char buf[2];
 
     buf[0] = c;
     buf[1] = 0;
-    return writeString(displayPort, col, row, attr, buf);
+    return writeString(displayPort, col, row, attr, buf); //!!TODO - check if there is a direct MSP command to do this
 }
 
 static bool isTransferInProgress(const displayPort_t *displayPort)
@@ -181,7 +168,6 @@ static const displayPortVTable_t mspDisplayPortVTable = {
     .clearScreen = clearScreen,
     .drawScreen = drawScreen,
     .screenSize = screenSize,
-    .writeSys = writeSys,
     .writeString = writeString,
     .writeChar = writeChar,
     .isTransferInProgress = isTransferInProgress,
@@ -204,9 +190,5 @@ displayPort_t *displayPortMspInit(void)
 
     redraw(&mspDisplayPort);
     return &mspDisplayPort;
-}
-
-void displayPortMspSetSerial(serialPortIdentifier_e serialPort) {
-    displayPortSerial = serialPort;
 }
 #endif // USE_MSP_DISPLAYPORT

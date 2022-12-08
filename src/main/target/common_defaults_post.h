@@ -89,6 +89,36 @@
 
 // Backward compatibility for exisiting targets
 
+#ifdef STM32F1
+#ifndef I2C1_SCL
+#define I2C1_SCL PB8
+#endif
+#ifndef I2C1_SDA
+#define I2C1_SDA PB9
+#endif
+#ifndef I2C2_SCL
+#define I2C2_SCL PB10
+#endif
+#ifndef I2C2_SDA
+#define I2C2_SDA PB11
+#endif
+#endif // STM32F1
+
+#ifdef STM32F3
+#ifndef I2C1_SCL
+#define I2C1_SCL PB6
+#endif
+#ifndef I2C1_SDA
+#define I2C1_SDA PB7
+#endif
+#ifndef I2C2_SCL
+#define I2C2_SCL PA9
+#endif
+#ifndef I2C2_SDA
+#define I2C2_SDA PA10
+#endif
+#endif // STM32F3
+
 #ifdef STM32F4
 #ifndef I2C1_SCL
 #define I2C1_SCL PB6
@@ -324,7 +354,7 @@
 
 // gyro hardware
 
-#if !defined(GYRO_1_SPI_INSTANCE) && !defined(SIMULATOR_BUILD)
+#if !defined(GYRO_1_SPI_INSTANCE)
 #define GYRO_1_SPI_INSTANCE     NULL
 #endif
 
@@ -495,6 +525,12 @@
 #endif
 
 #ifdef USE_ADC
+#if !defined(USE_UNIFIED_TARGET) && !defined(ADC_INSTANCE)
+#define ADC_INSTANCE ADC1
+#ifndef ADC1_DMA_OPT
+#define ADC1_DMA_OPT 1
+#endif
+#endif
 
 #if !defined(ADC1_DMA_OPT)
 #define ADC1_DMA_OPT (DMA_OPT_UNUSED)

@@ -28,7 +28,6 @@
 #define GPS_DEGREES_DIVIDER 10000000L
 #define GPS_X 1
 #define GPS_Y 0
-#define GPS_MIN_SAT_COUNT 4      // number of sats to trigger low sat count sanity check
 
 typedef enum {
     GPS_LATITUDE,
@@ -111,19 +110,12 @@ typedef struct gpsLocation_s {
     int32_t altCm;                  // altitude in 0.01m
 } gpsLocation_t;
 
-/* Accuracy of position estimation = device accuracy * DOP */
-typedef struct gpsDilution_s {
-    uint16_t pdop;                  // positional DOP - 3D (* 100)
-    uint16_t hdop;                  // horizontal DOP - 2D (* 100)
-    uint16_t vdop;                  // vertical DOP   - 1D (* 100)
-} gpsDilution_t;
-
 typedef struct gpsSolutionData_s {
     gpsLocation_t llh;
-    gpsDilution_t dop;
-    uint16_t speed3d;               // speed in 0.1m/s
+    uint16_t speed3d;              // speed in 0.1m/s
     uint16_t groundSpeed;           // speed in 0.1m/s
     uint16_t groundCourse;          // degrees * 10
+    uint16_t hdop;                  // generic HDOP value (*100)
     uint8_t numSat;
 } gpsSolutionData_t;
 
@@ -150,11 +142,11 @@ extern char gpsPacketLog[GPS_PACKET_LOG_ENTRY_COUNT];
 
 extern int32_t GPS_home[2];
 extern uint16_t GPS_distanceToHome;        // distance to home point in meters
-extern uint32_t GPS_distanceToHomeCm;      // distance to home point in cm
 extern int16_t GPS_directionToHome;        // direction to home or hol point in degrees
 extern uint32_t GPS_distanceFlownInCm;     // distance flown since armed in centimeters
 extern int16_t GPS_verticalSpeedInCmS;     // vertical speed in cm/s
 extern int16_t GPS_angle[ANGLE_INDEX_COUNT];                // it's the angles that must be applied for GPS correction
+extern float dTnav;             // Delta Time in milliseconds for navigation computations, updated with every good GPS read
 extern float GPS_scaleLonDown;  // this is used to offset the shrinking longitude as we go towards the poles
 extern int16_t nav_takeoff_bearing;
 

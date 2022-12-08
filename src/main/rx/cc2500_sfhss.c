@@ -125,7 +125,7 @@ const cc2500RegisterConfigElement_t cc2500SfhssConfigPart2[] =
     { CC2500_3E_PATABLE,  0xFF }
 };
 
-static void initialise(void)
+static void initialise()
 {
     cc2500Reset();
 

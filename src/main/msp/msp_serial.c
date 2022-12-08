@@ -40,8 +40,6 @@
 
 #include "msp_serial.h"
 
-#include "pg/msp.h"
-
 static mspPort_t mspPorts[MAX_MSP_PORT_COUNT];
 
 static void resetMspPort(mspPort_t *mspPortToReset, serialPort_t *serialPort, bool sharedWithTelemetry)
@@ -65,13 +63,7 @@ void mspSerialAllocatePorts(void)
             continue;
         }
 
-        portOptions_e options = SERIAL_NOT_INVERTED;
-
-        if (mspConfig()->halfDuplex) {
-            options |= SERIAL_BIDIR;
-        }
-
-        serialPort_t *serialPort = openSerialPort(portConfig->identifier, FUNCTION_MSP, NULL, NULL, baudRates[portConfig->msp_baudrateIndex], MODE_RXTX, options);
+        serialPort_t *serialPort = openSerialPort(portConfig->identifier, FUNCTION_MSP, NULL, NULL, baudRates[portConfig->msp_baudrateIndex], MODE_RXTX, SERIAL_NOT_INVERTED);
         if (serialPort) {
             bool sharedWithTelemetry = isSerialPortShared(portConfig, FUNCTION_MSP, TELEMETRY_PORT_FUNCTIONS_MASK);
             resetMspPort(mspPort, serialPort, sharedWithTelemetry);
@@ -94,20 +86,8 @@ void mspSerialReleasePortIfAllocated(serialPort_t *serialPort)
     }
 }
 
-mspDescriptor_t getMspSerialPortDescriptor(const uint8_t portIdentifier)
-{
-    for (uint8_t portIndex = 0; portIndex < MAX_MSP_PORT_COUNT; portIndex++) {
-        mspPort_t *candidateMspPort = &mspPorts[portIndex];
-        if (candidateMspPort->port->identifier == portIdentifier) {
-            return candidateMspPort->descriptor;
-        }
-    }
-    return -1;
-}
-
 #if defined(USE_TELEMETRY)
-void mspSerialReleaseSharedTelemetryPorts(void)
-{
+void mspSerialReleaseSharedTelemetryPorts(void) {
     for (uint8_t portIndex = 0; portIndex < MAX_MSP_PORT_COUNT; portIndex++) {
         mspPort_t *candidateMspPort = &mspPorts[portIndex];
         if (candidateMspPort->sharedWithTelemetry) {
@@ -574,7 +554,7 @@ void mspSerialInit(void)
     mspSerialAllocatePorts();
 }
 
-int mspSerialPush(serialPortIdentifier_e port, uint8_t cmd, uint8_t *data, int datalen, mspDirection_e direction, mspVersion_e mspVersion)
+int mspSerialPush(serialPortIdentifier_e port, uint8_t cmd, uint8_t *data, int datalen, mspDirection_e direction)
 {
     int ret = 0;
 
@@ -597,7 +577,7 @@ int mspSerialPush(serialPortIdentifier_e port, uint8_t cmd, uint8_t *data, int d
             .direction = direction,
         };
 
-        ret = mspSerialEncode(mspPort, &push, mspVersion);
+        ret = mspSerialEncode(mspPort, &push, MSP_V1);
     }
     return ret; // return the number of bytes written
 }

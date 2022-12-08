@@ -26,8 +26,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <math.h>
-#include <stdlib.h>
 
 #include "platform.h"
 
@@ -46,7 +44,6 @@
 #include "drivers/sensor.h"
 #include "drivers/serial.h"
 #include "drivers/time.h"
-#include "drivers/dshot.h"
 
 #include "config/config.h"
 #include "fc/rc_controls.h"
@@ -192,7 +189,7 @@ static void sendThrottleOrBatterySizeAsRpm(void)
 #if defined(USE_ESC_SENSOR_TELEMETRY)
     escSensorData_t *escData = getEscSensorData(ESC_SENSOR_COMBINED);
     if (escData) {
-        data = escData->dataAge < ESC_DATA_INVALID ? (erpmToRpm(escData->rpm) / 10) : 0;
+        data = escData->dataAge < ESC_DATA_INVALID ? (calcEscRpm(escData->rpm) / 10) : 0;
     }
 #else
     if (ARMING_FLAG(ARMED)) {
@@ -219,9 +216,9 @@ static void sendTemperature1(void)
         data = escData->dataAge < ESC_DATA_INVALID ? escData->temperature : 0;
     }
 #elif defined(USE_BARO)
-    data = lrintf(baro.temperature / 100.0f); // Airmamaf
+    data = (baro.baroTemperature + 50)/ 100; // Airmamaf
 #else
-    data = lrintf(gyroGetTemperature() / 10.0f);
+    data = gyroGetTemperature() / 10;
 #endif
     frSkyHubWriteFrame(ID_TEMPRATURE1, data);
 }
@@ -243,7 +240,7 @@ static void GPStoDDDMM_MMMM(int32_t mwiigps, gpsCoordinateDDDMMmmmm_t *result)
 {
     int32_t absgps, deg, min;
 
-    absgps = abs(mwiigps);
+    absgps = ABS(mwiigps);
     deg    = absgps / GPS_DEGREES_DIVIDER;
     absgps = (absgps - deg * GPS_DEGREES_DIVIDER) * 60;        // absgps = Minutes left * 10^7
     min    = absgps / GPS_DEGREES_DIVIDER;                     // minutes left
@@ -288,12 +285,15 @@ static void sendSatalliteSignalQualityAsTemperature2(uint8_t cycleNum)
 {
     uint16_t satellite = gpsSol.numSat;
 
-    if (gpsSol.dop.hdop > GPS_BAD_QUALITY && ( (cycleNum % 16 ) < 8)) { // Every 1s
-        satellite = constrain(gpsSol.dop.hdop, 0, GPS_MAX_HDOP_VAL);
+    if (gpsSol.hdop > GPS_BAD_QUALITY && ( (cycleNum % 16 ) < 8)) { // Every 1s
+        satellite = constrain(gpsSol.hdop, 0, GPS_MAX_HDOP_VAL);
     }
     int16_t data;
     if (telemetryConfig()->frsky_unit == UNIT_IMPERIAL) {
-        data = lrintf((satellite - 32) / 1.8f);
+        float tmp = (satellite - 32) / 1.8f;
+        // Round the value
+        tmp += (tmp < 0) ? -0.5f : 0.5f;
+        data = tmp;
     } else {
         data = satellite;
     }

@@ -22,7 +22,6 @@ extern "C" {
 #include "platform.h"
 #include "common/utils.h"
 #include "pg/pg.h"
-#include "pg/pg_ids.h"
 #include "drivers/serial.h"
 #include "io/serial.h"
 #include "io/gps.h"
@@ -37,8 +36,6 @@ extern "C" {
 #include "sensors/acceleration.h"
 #include "scheduler/scheduler.h"
 #include "fc/tasks.h"
-
-PG_REGISTER(gpsConfig_t, gpsConfig, PG_GPS_CONFIG, 0);
 }
 
 #include "unittest_macros.h"
@@ -61,8 +58,7 @@ extern "C" {
 }
 
 static int16_t gyroTemperature;
-int16_t gyroGetTemperature(void)
-{
+int16_t gyroGetTemperature(void) {
     return gyroTemperature;
 }
 
@@ -74,7 +70,7 @@ uint16_t getVbat(void)
 
 extern "C" {
 static int32_t amperage = 100;
-static int16_t estimatedVario = 0;
+static int32_t estimatedVario = 0;
 static uint8_t batteryRemaining = 0;
 static throttleStatus_e throttleStatus = THROTTLE_HIGH;
 static uint32_t definedFeatures = 0;
@@ -86,7 +82,7 @@ int32_t getAmperage(void)
     return amperage;
 }
 
-int16_t getEstimatedVario(void)
+int32_t getEstimatedVario(void)
 {
     return estimatedVario;
 }
@@ -136,8 +132,7 @@ uint16_t getBatteryVoltage(void)
     return testBatteryVoltage;
 }
 
-uint8_t getBatteryCellCount(void)
-{
+uint8_t getBatteryCellCount(void) {
     return testBatteryCellCount;
 }
 
@@ -187,8 +182,7 @@ bool telemetryDetermineEnabledState(portSharing_e portSharing)
 }
 
 
-bool telemetryIsSensorEnabled(sensor_e sensor)
-{
+bool telemetryIsSensorEnabled(sensor_e sensor) {
     UNUSED(sensor);
     return true;
 }

@@ -63,9 +63,7 @@
 #define LOG_IGNORED      '!'
 #define LOG_SKIPPED      '>'
 #define LOG_NMEA_GGA     'g'
-#define LOG_NMEA_GSA     's'
 #define LOG_NMEA_RMC     'r'
-#define LOG_UBLOX_DOP    'D'
 #define LOG_UBLOX_SOL    'O'
 #define LOG_UBLOX_STATUS 'S'
 #define LOG_UBLOX_SVINFO 'I'
@@ -83,13 +81,13 @@ static char *gpsPacketLogChar = gpsPacketLog;
 // **********************
 int32_t GPS_home[2];
 uint16_t GPS_distanceToHome;        // distance to home point in meters
-uint32_t GPS_distanceToHomeCm;
-int16_t GPS_directionToHome;        // direction to home or hol point in degrees * 10
+int16_t GPS_directionToHome;        // direction to home or hol point in degrees
 uint32_t GPS_distanceFlownInCm;     // distance flown since armed in centimeters
 int16_t GPS_verticalSpeedInCmS;     // vertical speed in cm/s
+float dTnav;             // Delta Time in milliseconds for navigation computations, updated with every good GPS read
 int16_t nav_takeoff_bearing;
 
-#define GPS_DISTANCE_FLOWN_MIN_SPEED_THRESHOLD_CM_S 15 // 0.54 km/h 0.335 mph
+#define GPS_DISTANCE_FLOWN_MIN_SPEED_THRESHOLD_CM_S 15 // 5.4Km/h 3.35mph
 
 gpsSolutionData_t gpsSol;
 uint32_t GPS_packetCount = 0;
@@ -129,7 +127,7 @@ static const gpsInitData_t gpsInitData[] = {
     { GPS_BAUDRATE_9600,      BAUD_9600, "$PUBX,41,1,0003,0001,9600,0*16\r\n", "" }
 };
 
-#define GPS_INIT_DATA_ENTRY_COUNT ARRAYLEN(gpsInitData)
+#define GPS_INIT_DATA_ENTRY_COUNT (sizeof(gpsInitData) / sizeof(gpsInitData[0]))
 
 #define DEFAULT_BAUD_RATE_INDEX 0
 
@@ -144,7 +142,6 @@ enum {
     MSG_ACK_ACK = 0x01,
     MSG_POSLLH = 0x2,
     MSG_STATUS = 0x3,
-    MSG_DOP = 0x4,
     MSG_SOL = 0x6,
     MSG_PVT = 0x7,
     MSG_VELNED = 0x12,
@@ -279,7 +276,7 @@ gpsData_t gpsData;
 PG_REGISTER_WITH_RESET_TEMPLATE(gpsConfig_t, gpsConfig, PG_GPS_CONFIG, 0);
 
 PG_RESET_TEMPLATE(gpsConfig_t, gpsConfig,
-    .provider = GPS_UBLOX,
+    .provider = GPS_NMEA,
     .sbasMode = SBAS_NONE,
     .autoConfig = GPS_AUTOCONFIG_ON,
     .autoBaud = GPS_AUTOBAUD_OFF,
@@ -287,7 +284,7 @@ PG_RESET_TEMPLATE(gpsConfig_t, gpsConfig,
     .gps_ublox_mode = UBLOX_AIRBORNE,
     .gps_set_home_point_once = false,
     .gps_use_3d_speed = false,
-    .sbas_integrity = false,
+    .sbas_integrity = false
 );
 
 static void shiftPacketLog(void)
@@ -299,8 +296,7 @@ static void shiftPacketLog(void)
     }
 }
 
-static bool isConfiguratorConnected(void)
-{
+static bool isConfiguratorConnected() {
     return (getArmingDisableFlags() & ARMING_DISABLED_MSP);
 }
 
@@ -475,8 +471,7 @@ static void ubloxSendPollMessage(uint8_t msg_id)
     ubloxSendMessage((const uint8_t *) &tx_buffer, 6);
 }
 
-static void ubloxSendNAV5Message(bool airborne)
-{
+static void ubloxSendNAV5Message(bool airborne) {
     ubx_message tx_buffer;
     tx_buffer.payload.cfg_nav5.mask = 0xFFFF;
     if (airborne) {
@@ -514,8 +509,7 @@ static void ubloxSendNAV5Message(bool airborne)
     ubloxSendConfigMessage(&tx_buffer, MSG_CFG_NAV_SETTINGS, sizeof(ubx_cfg_nav5));
 }
 
-static void ubloxSetMessageRate(uint8_t messageClass, uint8_t messageID, uint8_t rate)
-{
+static void ubloxSetMessageRate(uint8_t messageClass, uint8_t messageID, uint8_t rate) {
     ubx_message tx_buffer;
     tx_buffer.payload.cfg_msg.msgClass = messageClass;
     tx_buffer.payload.cfg_msg.msgID = messageID;
@@ -523,8 +517,7 @@ static void ubloxSetMessageRate(uint8_t messageClass, uint8_t messageID, uint8_t
     ubloxSendConfigMessage(&tx_buffer, MSG_CFG_MSG, sizeof(ubx_cfg_msg));
 }
 
-static void ubloxSetNavRate(uint16_t measRate, uint16_t navRate, uint16_t timeRef)
-{
+static void ubloxSetNavRate(uint16_t measRate, uint16_t navRate, uint16_t timeRef) {
     ubx_message tx_buffer;
     tx_buffer.payload.cfg_rate.measRate = measRate;
     tx_buffer.payload.cfg_rate.navRate = navRate;
@@ -532,8 +525,7 @@ static void ubloxSetNavRate(uint16_t measRate, uint16_t navRate, uint16_t timeRe
     ubloxSendConfigMessage(&tx_buffer, MSG_CFG_RATE, sizeof(ubx_cfg_rate));
 }
 
-static void ubloxSetSbas(void)
-{
+static void ubloxSetSbas() {
     ubx_message tx_buffer;
 
     //NOTE: default ublox config for sbas mode is: UBLOX_MODE_ENABLED, test is disabled
@@ -689,7 +681,7 @@ void gpsInitUblox(void)
                         }
                         break;
                     case 12:
-                        ubloxSetNavRate(0x64, 1, 1); // set rate to 10Hz (measurement period: 100ms, navigation rate: 1 cycle) (for 5Hz use 0xC8)
+                        ubloxSetNavRate(0xC8, 1, 1); // set rate to 5Hz (measurement period: 200ms, navigation rate: 1 cycle)
                         break;
                     case 13:
                         ubloxSetSbas();
@@ -765,7 +757,7 @@ void gpsInitHardware(void)
 static void updateGpsIndicator(timeUs_t currentTimeUs)
 {
     static uint32_t GPSLEDTime;
-    if ((int32_t)(currentTimeUs - GPSLEDTime) >= 0 && STATE(GPS_FIX) && (gpsSol.numSat >= gpsRescueConfig()->minSats)) {
+    if ((int32_t)(currentTimeUs - GPSLEDTime) >= 0 && (gpsSol.numSat >= 5)) {
         GPSLEDTime = currentTimeUs + 150000;
         LED1_TOGGLE;
     }
@@ -868,35 +860,39 @@ void gpsUpdate(timeUs_t currentTimeUs)
             break;
     }
 
-    if (sensors(SENSOR_GPS)) {
-        updateGpsIndicator(currentTimeUs);
-    }
-
-    if (!ARMING_FLAG(ARMED) && !gpsConfig()->gps_set_home_point_once) {
-        // clear the home fix icon between arms if the user configuration is to reset home point between arms
-        DISABLE_STATE(GPS_FIX_HOME);
-    }
-
-    static bool hasBeeped = false;
-    if (!ARMING_FLAG(ARMED)) {
-        // while disarmed, beep when requirements for a home fix are met
-        // ?? should we also beep if home fix requirements first appear after arming?
-        if (!hasBeeped && STATE(GPS_FIX) && gpsSol.numSat >= gpsRescueConfig()->minSats) {
-            beeper(BEEPER_READY_BEEP);
-            hasBeeped = true;
-        }
-    }
-
-    DEBUG_SET(DEBUG_GPS_DOP, 0, gpsSol.numSat);
-    DEBUG_SET(DEBUG_GPS_DOP, 1, gpsSol.dop.pdop);
-    DEBUG_SET(DEBUG_GPS_DOP, 2, gpsSol.dop.hdop);
-    DEBUG_SET(DEBUG_GPS_DOP, 3, gpsSol.dop.vdop);
-
     executeTimeUs = micros() - currentTimeUs;
+
     if (executeTimeUs > gpsStateDurationUs[gpsCurrentState]) {
         gpsStateDurationUs[gpsCurrentState] = executeTimeUs;
     }
     schedulerSetNextStateTime(gpsStateDurationUs[gpsData.state]);
+
+    if (sensors(SENSOR_GPS)) {
+        updateGpsIndicator(currentTimeUs);
+    }
+    if (!ARMING_FLAG(ARMED) && !gpsConfig()->gps_set_home_point_once) {
+        DISABLE_STATE(GPS_FIX_HOME);
+    }
+
+    uint8_t minSats = 5;
+
+#if defined(USE_GPS_RESCUE)
+    if (gpsRescueIsConfigured()) {
+        updateGPSRescueState();
+        minSats = gpsRescueConfig()->minSats;
+    }
+#endif
+
+    static bool hasFix = false;
+    if (STATE(GPS_FIX)) {
+        if (gpsIsHealthy() && gpsSol.numSat >= minSats && !hasFix) {
+            // ready beep sequence on fix or requirements for gps rescue met.
+            beeper(BEEPER_READY_BEEP);
+            hasFix = true;
+        }
+    } else {
+        hasFix = false;
+    }
 }
 
 static void gpsNewData(uint16_t c)
@@ -941,7 +937,7 @@ bool gpsNewFrame(uint8_t c)
 }
 
 // Check for healthy communications
-bool gpsIsHealthy(void)
+bool gpsIsHealthy()
 {
     return (gpsData.state == GPS_STATE_RECEIVING_DATA);
 }
@@ -965,7 +961,6 @@ bool gpsIsHealthy(void)
 #define FRAME_GGA  1
 #define FRAME_RMC  2
 #define FRAME_GSV  3
-#define FRAME_GSA  4
 
 
 // This code is used for parsing NMEA data
@@ -1045,9 +1040,7 @@ typedef struct gpsDataNmea_s {
     uint8_t numSat;
     int32_t altitudeCm;
     uint16_t speed;
-    uint16_t pdop;
     uint16_t hdop;
-    uint16_t vdop;
     uint16_t ground_course;
     uint32_t time;
     uint32_t date;
@@ -1081,8 +1074,6 @@ static bool gpsNewFrameNMEA(char c)
                     gps_frame = FRAME_RMC;
                 } else if (0 == strcmp(string, "GPGSV")) {
                     gps_frame = FRAME_GSV;
-                } else if (0 == strcmp(string, "GPGSA")) {
-                    gps_frame = FRAME_GSA;
                 }
             }
 
@@ -1110,6 +1101,9 @@ static bool gpsNewFrameNMEA(char c)
                             break;
                         case 7:
                             gps_Msg.numSat = grab_fields(string, 0);
+                            break;
+                        case 8:
+                            gps_Msg.hdop = grab_fields(string, 1) * 100;          // hdop
                             break;
                         case 9:
                             gps_Msg.altitudeCm = grab_fields(string, 1) * 10;     // altitude in centimeters. Note: NMEA delivers altitude with 1 or 3 decimals. It's safer to cut at 0.1m and multiply by 10
@@ -1181,20 +1175,6 @@ static bool gpsNewFrameNMEA(char c)
                     GPS_svInfoReceivedCount++;
 
                     break;
-
-                case FRAME_GSA:
-                    switch (param) {
-                        case 15:
-                            gps_Msg.pdop = grab_fields(string, 1) * 100;        // pDOP
-                            break;
-                        case 16:
-                            gps_Msg.hdop = grab_fields(string, 1) * 100;        // hDOP
-                            break;
-                        case 17:
-                            gps_Msg.vdop = grab_fields(string, 1) * 100;        // vDOP
-                            break;
-                    }
-                    break;
             }
 
             param++;
@@ -1214,20 +1194,15 @@ static bool gpsNewFrameNMEA(char c)
                     GPS_packetCount++;
                     switch (gps_frame) {
                     case FRAME_GGA:
-                        *gpsPacketLogChar = LOG_NMEA_GGA;
-                        frameOK = 1;
-                        if (STATE(GPS_FIX)) {
+                      *gpsPacketLogChar = LOG_NMEA_GGA;
+                      frameOK = 1;
+                      if (STATE(GPS_FIX)) {
                             gpsSol.llh.lat = gps_Msg.latitude;
                             gpsSol.llh.lon = gps_Msg.longitude;
                             gpsSol.numSat = gps_Msg.numSat;
                             gpsSol.llh.altCm = gps_Msg.altitudeCm;
+                            gpsSol.hdop = gps_Msg.hdop;
                         }
-                        break;
-                    case FRAME_GSA:
-                        *gpsPacketLogChar = LOG_NMEA_GSA;
-                        gpsSol.dop.pdop = gps_Msg.pdop;
-                        gpsSol.dop.hdop = gps_Msg.hdop;
-                        gpsSol.dop.vdop = gps_Msg.vdop;
                         break;
                     case FRAME_RMC:
                         *gpsPacketLogChar = LOG_NMEA_RMC;
@@ -1286,17 +1261,6 @@ typedef struct {
     uint32_t time_to_first_fix;
     uint32_t uptime;            // milliseconds
 } ubx_nav_status;
-
-typedef struct {
-    uint32_t itow;              // GPS Millisecond Time of Week
-    uint16_t gdop;              // Geometric DOP
-    uint16_t pdop;              // Position DOP
-    uint16_t tdop;              // Time DOP
-    uint16_t vdop;              // Vertical DOP
-    uint16_t hdop;              // Horizontal DOP
-    uint16_t ndop;              // Northing DOP
-    uint16_t edop;              // Easting DOP
-} ubx_nav_dop;
 
 typedef struct {
     uint32_t time;
@@ -1469,7 +1433,6 @@ static bool _new_speed;
 static union {
     ubx_nav_posllh posllh;
     ubx_nav_status status;
-    ubx_nav_dop dop;
     ubx_nav_solution solution;
     ubx_nav_velned velned;
     ubx_nav_pvt pvt;
@@ -1511,18 +1474,13 @@ static bool UBLOX_parse_gps(void)
         if (!next_fix)
             DISABLE_STATE(GPS_FIX);
         break;
-    case MSG_DOP:
-        *gpsPacketLogChar = LOG_UBLOX_DOP;
-        gpsSol.dop.pdop = _buffer.dop.pdop;
-        gpsSol.dop.hdop = _buffer.dop.hdop;
-        gpsSol.dop.vdop = _buffer.dop.vdop;
-        break;
     case MSG_SOL:
         *gpsPacketLogChar = LOG_UBLOX_SOL;
         next_fix = (_buffer.solution.fix_status & NAV_STATUS_FIX_VALID) && (_buffer.solution.fix_type == FIX_3D);
         if (!next_fix)
             DISABLE_STATE(GPS_FIX);
         gpsSol.numSat = _buffer.solution.satellites;
+        gpsSol.hdop = _buffer.solution.position_DOP;
 #ifdef USE_RTC_TIME
         //set clock, when gps time is available
         if(!rtcHasTime() && (_buffer.solution.fix_status & NAV_STATUS_TIME_SECOND_VALID) && (_buffer.solution.fix_status & NAV_STATUS_TIME_WEEK_VALID)) {
@@ -1548,6 +1506,7 @@ static bool UBLOX_parse_gps(void)
         gpsSetFixState(next_fix);
         _new_position = true;
         gpsSol.numSat = _buffer.pvt.numSV;
+        gpsSol.hdop = _buffer.pvt.pDOP;
         gpsSol.speed3d = (uint16_t) sqrtf(powf(_buffer.pvt.gSpeed / 10, 2.0f) + powf(_buffer.pvt.velD / 10, 2.0f));
         gpsSol.groundSpeed = _buffer.pvt.gSpeed / 10;    // cm/s
         gpsSol.groundCourse = (uint16_t) (_buffer.pvt.headMot / 10000);     // Heading 2D deg * 100000 rescaled to deg * 10
@@ -1829,7 +1788,7 @@ static void GPS_calculateDistanceFlownVerticalSpeed(bool initialize)
                 int32_t dir;
                 GPS_distance_cm_bearing(&gpsSol.llh.lat, &gpsSol.llh.lon, &lastCoord[GPS_LATITUDE], &lastCoord[GPS_LONGITUDE], &dist, &dir);
                 if (gpsConfig()->gps_use_3d_speed) {
-                    dist = sqrtf(sq(gpsSol.llh.altCm - lastAlt) + sq(dist));
+                    dist = sqrtf(powf(gpsSol.llh.altCm - lastAlt, 2.0f) + powf(dist, 2.0f));
                 }
                 GPS_distanceFlownInCm += dist;
             }
@@ -1844,22 +1803,17 @@ static void GPS_calculateDistanceFlownVerticalSpeed(bool initialize)
 }
 
 void GPS_reset_home_position(void)
-// runs, if GPS is defined, on arming via tryArm() in core.c, and on gyro cal via processRcStickPositions() in rc_controls.c
 {
     if (!STATE(GPS_FIX_HOME) || !gpsConfig()->gps_set_home_point_once) {
-        if (STATE(GPS_FIX) && gpsSol.numSat >= gpsRescueConfig()->minSats) {
-            // those checks are always true for tryArm, but may not be true for gyro cal
+        if (STATE(GPS_FIX) && gpsSol.numSat >= 5) {
             GPS_home[GPS_LATITUDE] = gpsSol.llh.lat;
             GPS_home[GPS_LONGITUDE] = gpsSol.llh.lon;
-            GPS_calc_longitude_scaling(gpsSol.llh.lat);
+            GPS_calc_longitude_scaling(gpsSol.llh.lat); // need an initial value for distance and bearing calc
+            // Set ground altitude
             ENABLE_STATE(GPS_FIX_HOME);
-            // no point beeping success here since:
-            // when triggered by tryArm, the arming beep is modified to indicate the GPS home fix status on arming, and
-            // when triggered by gyro cal, the gyro cal beep takes priority over the GPS beep, so we won't hear the GPS beep
-            // PS: to test for gyro cal, check for !ARMED, since we cannot be here while disarmed other than via gyro cal
         }
     }
-    GPS_calculateDistanceFlownVerticalSpeed(true); // Initialize
+    GPS_calculateDistanceFlownVerticalSpeed(true); //Initialize
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -1880,27 +1834,33 @@ void GPS_distance_cm_bearing(int32_t *currentLat1, int32_t *currentLon1, int32_t
 
 void GPS_calculateDistanceAndDirectionToHome(void)
 {
-    if (STATE(GPS_FIX_HOME)) {
+    if (STATE(GPS_FIX_HOME)) {      // If we don't have home set, do not display anything
         uint32_t dist;
         int32_t dir;
         GPS_distance_cm_bearing(&gpsSol.llh.lat, &gpsSol.llh.lon, &GPS_home[GPS_LATITUDE], &GPS_home[GPS_LONGITUDE], &dist, &dir);
-        GPS_distanceToHome = dist / 100; // m/s
-        GPS_distanceToHomeCm = dist; // cm/sec
-        GPS_directionToHome = dir / 10; // degrees * 10 or decidegrees
+        GPS_distanceToHome = dist / 100;
+        GPS_directionToHome = dir / 100;
     } else {
-        // If we don't have home set, do not display anything
         GPS_distanceToHome = 0;
-        GPS_distanceToHomeCm = 0;
         GPS_directionToHome = 0;
     }
 }
 
 void onGpsNewData(void)
 {
-    if (!(STATE(GPS_FIX) && gpsSol.numSat >= GPS_MIN_SAT_COUNT)) {
-        // if we don't have a 3D fix and the minimum sats, don't give data to GPS rescue
+    if (!(STATE(GPS_FIX) && gpsSol.numSat >= 5)) {
         return;
     }
+
+    //
+    // Calculate time delta for navigation loop, range 0-1.0f, in seconds
+    //
+    // Time for calculating x,y speed and navigation pids
+    static uint32_t nav_loopTimer;
+    dTnav = (float)(millis() - nav_loopTimer) / 1000.0f;
+    nav_loopTimer = millis();
+    // prevent runup from bad GPS
+    dTnav = MIN(dTnav, 1.0f);
 
     GPS_calculateDistanceAndDirectionToHome();
     if (ARMING_FLAG(ARMED)) {
@@ -1908,7 +1868,7 @@ void onGpsNewData(void)
     }
 
 #ifdef USE_GPS_RESCUE
-    gpsRescueNewGpsData();
+    rescueNewGpsData();
 #endif
 }
 

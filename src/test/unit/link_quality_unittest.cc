@@ -79,6 +79,7 @@ extern "C" {
     gpsSolutionData_t gpsSol;
     float motor[8];
     acc_t acc;
+    float accAverage[XYZ_AXIS_COUNT];
 
     PG_REGISTER(batteryConfig_t, batteryConfig, PG_BATTERY_CONFIG, 0);
     PG_REGISTER(blackboxConfig_t, blackboxConfig, PG_BLACKBOX_CONFIG, 0);
@@ -163,8 +164,7 @@ void doTestArm(bool testEmpty = true)
 /*
  * Auxiliary function. Test is there're stats that must be shown
  */
-bool isSomeStatEnabled(void)
-{
+bool isSomeStatEnabled(void) {
     return (osdConfigMutable()->enabled_stats != 0);
 }
 
@@ -480,7 +480,6 @@ extern "C" {
     uint16_t getBatteryAverageCellVoltage() { return  420; }
     int32_t getAmperage() { return 0; }
     int32_t getMAhDrawn() { return 0; }
-    float getWhDrawn() { return 0.0; }
     int32_t getEstimatedAltitudeCm() { return 0; }
     int32_t getEstimatedVario() { return 0; }
     int32_t blackboxGetLogNumber() { return 0; }
@@ -514,7 +513,7 @@ extern "C" {
     void failsafeOnValidDataReceived(void) { }
     void failsafeOnValidDataFailed(void) { }
     void pinioBoxTaskControl(void) { }
-    bool taskUpdateRxMainInProgress(void) { return true; }
+    bool taskUpdateRxMainInProgress() { return true; }
     void schedulerIgnoreTaskStateTime(void) { }
     void schedulerIgnoreTaskExecRate(void) { }
     bool schedulerGetIgnoreTaskExecTime() { return false; }
@@ -601,12 +600,6 @@ extern "C" {
     }
 
     void pt1FilterInit(pt1Filter_t *filter, float k)
-    {
-        UNUSED(filter);
-        UNUSED(k);
-    }
-
-    void pt1FilterUpdateCutoff(pt1Filter_t *filter, float k)
     {
         UNUSED(filter);
         UNUSED(k);

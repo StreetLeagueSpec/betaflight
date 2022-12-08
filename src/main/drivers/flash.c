@@ -183,7 +183,7 @@ static bool flashSpiInit(const flashConfig_t *flashConfig)
     }
 #endif
 
-#if defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25M)
+#ifdef USE_FLASH_W25M512
     if (w25m_detect(&flashDevice, chipID)) {
         return true;
     }
@@ -332,7 +332,7 @@ const flashGeometry_t *flashGetGeometry(void)
 
 static void flashConfigurePartitions(void)
 {
-#if defined(FIRMWARE_SIZE) || defined(CONFIG_IN_EXTERNAL_FLASH) || defined(USE_FLASHFS)
+
     const flashGeometry_t *flashGeometry = flashGetGeometry();
     if (flashGeometry->totalSize == 0) {
         return;
@@ -345,7 +345,6 @@ static void flashConfigurePartitions(void)
     if (badBlockPartition) {
         endSector = badBlockPartition->startSector - 1;
     }
-#endif
 
 #if defined(FIRMWARE_SIZE)
     const uint32_t firmwareSize = (FIRMWARE_SIZE * 1024);

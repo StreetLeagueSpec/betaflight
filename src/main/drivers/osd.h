@@ -43,8 +43,7 @@
 typedef enum {
     VIDEO_SYSTEM_AUTO = 0,
     VIDEO_SYSTEM_PAL,
-    VIDEO_SYSTEM_NTSC,
-    VIDEO_SYSTEM_HD
+    VIDEO_SYSTEM_NTSC
 } videoSystem_e;
 
 typedef enum {

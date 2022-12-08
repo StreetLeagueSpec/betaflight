@@ -25,7 +25,6 @@
  */
 
 #include <stdint.h>
-#include <stdlib.h>
 
 #include "platform.h"
 
@@ -151,7 +150,7 @@ static bool dateTimeFormat(char *buf, dateTime_t *dateTime, int16_t offsetMinute
     // Apply offset if necessary
     if (offsetMinutes != 0) {
         tz_hours = offsetMinutes / 60;
-        tz_minutes = abs(offsetMinutes % 60);
+        tz_minutes = ABS(offsetMinutes % 60);
         dateTimeWithOffset(&local, dateTime, offsetMinutes);
         dateTime = &local;
     }
@@ -173,7 +172,7 @@ static bool dateTimeFormat(char *buf, dateTime_t *dateTime, int16_t offsetMinute
         tfp_sprintf(buf, "%04u-%02u-%02uT%02u:%02u:%02u.%03u%c%02d:%02d",
             dateTime->year, dateTime->month, dateTime->day,
             dateTime->hours, dateTime->minutes, dateTime->seconds, dateTime->millis,
-            tz_hours >= 0 ? '+' : '-', abs(tz_hours), tz_minutes);
+            tz_hours >= 0 ? '+' : '-', ABS(tz_hours), tz_minutes);
     }
 
     return retVal;

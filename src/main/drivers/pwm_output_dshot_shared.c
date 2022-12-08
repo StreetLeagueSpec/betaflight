@@ -39,6 +39,8 @@
 #include "drivers/timer.h"
 #if defined(STM32F4)
 #include "stm32f4xx.h"
+#elif defined(STM32F3)
+#include "stm32f30x.h"
 #endif
 
 #include "pwm_output.h"
@@ -167,10 +169,19 @@ static uint32_t decodeTelemetryPacket(uint32_t buffer[], uint32_t count)
     csum = csum ^ (csum >> 4); // xor nibbles
 
     if ((csum & 0xf) != 0xf) {
-        return DSHOT_TELEMETRY_INVALID;
+        return 0xffff;
     }
+    decodedValue >>= 4;
 
-    return decodedValue >> 4;
+    if (decodedValue == 0x0fff) {
+        return 0;
+    }
+    decodedValue = (decodedValue & 0x000001ff) << ((decodedValue & 0xfffffe00) >> 9);
+    if (!decodedValue) {
+        return 0xffff;
+    }
+    uint32_t ret = (1000000 * 60 / 100 + decodedValue / 2) / decodedValue;
+    return ret;
 }
 
 #endif
@@ -181,12 +192,10 @@ FAST_CODE_NOINLINE bool pwmStartDshotMotorUpdate(void)
     if (!useDshotTelemetry) {
         return true;
     }
-
 #ifdef USE_DSHOT_TELEMETRY_STATS
     const timeMs_t currentTimeMs = millis();
 #endif
     const timeUs_t currentUs = micros();
-
     for (int i = 0; i < dshotPwmDevice.count; i++) {
         timeDelta_t usSinceInput = cmpTimeUs(currentUs, inputStampUs);
         if (usSinceInput >= 0 && usSinceInput < dmaMotors[i].dshotTelemetryDeadtimeUs) {
@@ -205,26 +214,20 @@ FAST_CODE_NOINLINE bool pwmStartDshotMotorUpdate(void)
             TIM_DMACmd(dmaMotors[i].timerHardware->tim, dmaMotors[i].timerDmaSource, DISABLE);
 #endif
 
-            uint16_t rawValue;
+            uint16_t value = 0xffff;
 
             if (edges > MIN_GCR_EDGES) {
                 dshotTelemetryState.readCount++;
-
-                rawValue = decodeTelemetryPacket(dmaMotors[i].dmaBuffer, edges);
+                value = decodeTelemetryPacket(dmaMotors[i].dmaBuffer, edges);
 
 #ifdef USE_DSHOT_TELEMETRY_STATS
                 bool validTelemetryPacket = false;
 #endif
-                if (rawValue != DSHOT_TELEMETRY_INVALID) {
-                    // Check EDT enable or store raw value
-                    if ((rawValue == 0x0E00) && (dshotCommandGetCurrent(i) == DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE)) {
-                        dshotTelemetryState.motorState[i].telemetryTypes = DSHOT_TELEMETRY_TYPE_STATE_EVENTS;
-                    } else {
-                        dshotTelemetryState.motorState[i].rawValue = rawValue;
-                    }
-
+                if (value != 0xffff) {
+                    dshotTelemetryState.motorState[i].telemetryValue = value;
+                    dshotTelemetryState.motorState[i].telemetryActive = true;
                     if (i < 4) {
-                        DEBUG_SET(DEBUG_DSHOT_RPM_TELEMETRY, i, rawValue);
+                        DEBUG_SET(DEBUG_DSHOT_RPM_TELEMETRY, i, value);
                     }
 #ifdef USE_DSHOT_TELEMETRY_STATS
                     validTelemetryPacket = true;
@@ -242,12 +245,46 @@ FAST_CODE_NOINLINE bool pwmStartDshotMotorUpdate(void)
         }
         pwmDshotSetDirectionOutput(&dmaMotors[i]);
     }
-
-    dshotTelemetryState.rawValueState = DSHOT_RAW_VALUE_STATE_NOT_PROCESSED;
     inputStampUs = 0;
     dshotEnableChannels(dshotPwmDevice.count);
     return true;
 }
 
+bool isDshotMotorTelemetryActive(uint8_t motorIndex)
+{
+    return dshotTelemetryState.motorState[motorIndex].telemetryActive;
+}
+
+bool isDshotTelemetryActive(void)
+{
+    const unsigned motorCount = motorDeviceCount();
+    if (motorCount) {
+        for (unsigned i = 0; i < motorCount; i++) {
+            if (!isDshotMotorTelemetryActive(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+#ifdef USE_DSHOT_TELEMETRY_STATS
+int16_t getDshotTelemetryMotorInvalidPercent(uint8_t motorIndex)
+{
+    int16_t invalidPercent = 0;
+
+    if (dshotTelemetryState.motorState[motorIndex].telemetryActive) {
+        const uint32_t totalCount = dshotTelemetryQuality[motorIndex].packetCountSum;
+        const uint32_t invalidCount = dshotTelemetryQuality[motorIndex].invalidCountSum;
+        if (totalCount > 0) {
+            invalidPercent = lrintf(invalidCount * 10000.0f / totalCount);
+        }
+    } else {
+        invalidPercent = 10000;  // 100.00%
+    }
+    return invalidPercent;
+}
+#endif // USE_DSHOT_TELEMETRY_STATS
 #endif // USE_DSHOT_TELEMETRY
 #endif // USE_DSHOT

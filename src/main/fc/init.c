@@ -95,10 +95,8 @@
 #include "flight/failsafe.h"
 #include "flight/imu.h"
 #include "flight/mixer.h"
-#include "flight/gps_rescue.h"
 #include "flight/pid.h"
 #include "flight/pid_init.h"
-#include "flight/position.h"
 #include "flight/servos.h"
 
 #include "io/asyncfatfs/asyncfatfs.h"
@@ -119,7 +117,6 @@
 #include "io/transponder_ir.h"
 #include "io/vtx.h"
 #include "io/vtx_control.h"
-#include "io/vtx_msp.h"
 #include "io/vtx_rtc6705.h"
 #include "io/vtx_smartaudio.h"
 #include "io/vtx_tramp.h"
@@ -237,7 +234,7 @@ static void configureSPIAndQuadSPI(void)
 }
 
 #ifdef USE_SDCARD
-static void sdCardAndFSInit(void)
+static void sdCardAndFSInit()
 {
     sdcard_init(sdcardConfig());
     afatfs_init();
@@ -428,7 +425,7 @@ void init(void)
 #endif
     LED2_ON;
 
-#if !defined(SIMULATOR_BUILD)
+#ifdef USE_EXTI
     EXTIInit();
 #endif
 
@@ -685,7 +682,11 @@ void init(void)
 
     if (!sensorsAutodetect()) {
         // if gyro was not detected due to whatever reason, notify and don't arm.
-        if (isSystemConfigured()) {
+        if (true
+#if defined(USE_UNIFIED_TARGET)
+            && isSystemConfigured()
+#endif
+            ) {
             indicateFailure(FAILURE_MISSING_ACC, 2);
         }
         setArmingDisabled(ARMING_DISABLED_NO_GYRO);
@@ -764,9 +765,6 @@ void init(void)
 #ifdef USE_GPS
     if (featureIsEnabled(FEATURE_GPS)) {
         gpsInit();
-#ifdef USE_GPS_RESCUE
-        gpsRescueInit();
-#endif
     }
 #endif
 
@@ -829,7 +827,6 @@ void init(void)
 #ifdef USE_BARO
     baroStartCalibration();
 #endif
-    positionInit();
 
 #if defined(USE_VTX_COMMON) || defined(USE_VTX_CONTROL)
     vtxTableInit();
@@ -840,10 +837,6 @@ void init(void)
 
 #if defined(USE_VTX_COMMON)
     vtxCommonInit();
-#endif
-
-#ifdef USE_VTX_MSP
-    vtxMspInit();
 #endif
 
 #ifdef USE_VTX_SMARTAUDIO
@@ -891,11 +884,10 @@ void init(void)
 
 #if (defined(USE_OSD) || (defined(USE_MSP_DISPLAYPORT) && defined(USE_CMS)))
     displayPort_t *osdDisplayPort = NULL;
+    osdDisplayPortDevice_e osdDisplayPortDevice = OSD_DISPLAYPORT_DEVICE_NONE;
 #endif
 
 #if defined(USE_OSD)
-    osdDisplayPortDevice_e osdDisplayPortDevice = OSD_DISPLAYPORT_DEVICE_NONE;
-
     //The OSD need to be initialised after GYRO to avoid GYRO initialisation failure on some targets
 
     if (featureIsEnabled(FEATURE_OSD)) {

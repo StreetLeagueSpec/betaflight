@@ -46,10 +46,9 @@
 #include "sensors/rangefinder.h"
 #include "sensors/sensors.h"
 
-
 // requestedSensors is not actually used
-uint8_t requestedSensors[SENSOR_INDEX_COUNT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE, RANGEFINDER_NONE };
-uint8_t detectedSensors[SENSOR_INDEX_COUNT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE, RANGEFINDER_NONE };
+uint8_t requestedSensors[SENSOR_INDEX_COUNT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE  };
+uint8_t detectedSensors[SENSOR_INDEX_COUNT] = { GYRO_NONE, ACC_NONE, BARO_NONE, MAG_NONE };
 
 void sensorsPreInit(void)
 {
@@ -82,7 +81,7 @@ bool sensorsAutodetect(void)
 #endif
 
 #ifdef USE_BARO
-    baroInit();
+    baroDetect(&baro.dev, barometerConfig()->baro_hardware);
 #endif
 
 #ifdef USE_RANGEFINDER

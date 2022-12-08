@@ -94,6 +94,7 @@
 
 #include "sensors/acceleration.h"
 #include "sensors/battery.h"
+#include "sensors/esc_sensor.h"
 #include "sensors/sensors.h"
 
 #ifdef USE_HARDWARE_REVISION_DETECTION
@@ -123,7 +124,6 @@ timeUs_t osdFlyTime = 0;
 #if defined(USE_ACC)
 float osdGForce = 0;
 #endif
-uint16_t osdAuxValue = 0;
 
 static bool showVisualBeeper = false;
 
@@ -147,11 +147,11 @@ static bool backgroundLayerSupported = false;
 escSensorData_t *osdEscDataCombined;
 #endif
 
-STATIC_ASSERT(OSD_POS_MAX == OSD_POS(63,31), OSD_POS_MAX_incorrect);
+STATIC_ASSERT(OSD_POS_MAX == OSD_POS(31,31), OSD_POS_MAX_incorrect);
 
-PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 12);
+PG_REGISTER_WITH_RESET_FN(osdConfig_t, osdConfig, PG_OSD_CONFIG, 9);
 
-PG_REGISTER_WITH_RESET_FN(osdElementConfig_t, osdElementConfig, PG_OSD_ELEMENT_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN(osdElementConfig_t, osdElementConfig, PG_OSD_ELEMENT_CONFIG, 0);
 
 // Controls the display order of the OSD post-flight statistics.
 // Adjust the ordering here to control how the post-flight stats are presented.
@@ -185,11 +185,9 @@ const osd_stats_e osdStatsDisplayOrder[OSD_STAT_COUNT] = {
     OSD_STAT_MIN_LINK_QUALITY,
     OSD_STAT_MAX_FFT,
     OSD_STAT_MIN_RSSI_DBM,
-    OSD_STAT_MIN_RSNR,
     OSD_STAT_TOTAL_FLIGHTS,
     OSD_STAT_TOTAL_TIME,
     OSD_STAT_TOTAL_DIST,
-    OSD_STAT_WATT_HOURS_DRAWN,
 };
 
 // Group elements in a number of groups to reduce task scheduling overhead
@@ -221,7 +219,7 @@ int osdPrintFloat(char *buffer, char leadingSymbol, float value, char *formatStr
     }
 
     value *= multiplier;
-    const int scaledValueAbs = abs(round ? (int)lrintf(value) : (int)value);
+    const int scaledValueAbs = ABS(round ? lrintf(value) : value);
     const int integerPart = scaledValueAbs / multiplier;
     const int fractionalPart = scaledValueAbs % multiplier;
 
@@ -345,7 +343,6 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
     osdWarnSetState(OSD_WARNING_RSSI, false);
     osdWarnSetState(OSD_WARNING_LINK_QUALITY, false);
     osdWarnSetState(OSD_WARNING_RSSI_DBM, false);
-    osdWarnSetState(OSD_WARNING_RSNR, false);
     // turn off the over mah capacity warning
     osdWarnSetState(OSD_WARNING_OVER_CAP, false);
 
@@ -372,7 +369,6 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
         osdConfig->profile[i][0] = '\0';
     }
     osdConfig->rssi_dbm_alarm = -60;
-    osdConfig->rsnr_alarm = 4;
     osdConfig->gps_sats_show_hdop = false;
 
     for (int i = 0; i < OSD_RCCHANNELS_COUNT; i++) {
@@ -391,16 +387,6 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
     osdConfig->stat_show_cell_value = false;
     osdConfig->framerate_hz = OSD_FRAMERATE_DEFAULT_HZ;
     osdConfig->cms_background_type = DISPLAY_BACKGROUND_TRANSPARENT;
-    #ifdef USE_CRAFTNAME_MSGS
-    osdConfig->osd_craftname_msgs = false;   // Insert LQ/RSSI-dBm and warnings into CraftName
-    #endif //USE_CRAFTNAME_MSGS
-
-    osdConfig->aux_channel = 1;
-    osdConfig->aux_scale = 200;
-    osdConfig->aux_symbol = 'A';
-
-    osdConfig->canvas_cols = OSD_HD_COLS;
-    osdConfig->canvas_rows = OSD_HD_ROWS;
 }
 
 void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
@@ -432,7 +418,7 @@ static void osdDrawLogo(int x, int y)
     for (int row = 0; row < 4; row++) {
         for (int column = 0; column < 24; column++) {
             if (fontOffset <= SYM_END_OF_FONT)
-                displayWriteChar(osdDisplayPort, x + column, y + row, DISPLAYPORT_ATTR_NORMAL, fontOffset++);
+                displayWriteChar(osdDisplayPort, x + column, y + row, DISPLAYPORT_ATTR_NONE, fontOffset++);
         }
     }
 }
@@ -453,17 +439,17 @@ static void osdCompleteInitialization(void)
 
     char string_buffer[30];
     tfp_sprintf(string_buffer, "V%s", FC_VERSION_STRING);
-    displayWrite(osdDisplayPort, 20, 6, DISPLAYPORT_ATTR_NORMAL, string_buffer);
+    displayWrite(osdDisplayPort, 20, 6, DISPLAYPORT_ATTR_NONE, string_buffer);
 #ifdef USE_CMS
-    displayWrite(osdDisplayPort, 7, 8,  DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT1);
-    displayWrite(osdDisplayPort, 11, 9, DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT2);
-    displayWrite(osdDisplayPort, 11, 10, DISPLAYPORT_ATTR_NORMAL, CMS_STARTUP_HELP_TEXT3);
+    displayWrite(osdDisplayPort, 7, 8,  DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT1);
+    displayWrite(osdDisplayPort, 11, 9, DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT2);
+    displayWrite(osdDisplayPort, 11, 10, DISPLAYPORT_ATTR_NONE, CMS_STARTUP_HELP_TEXT3);
 #endif
 
 #ifdef USE_RTC_TIME
     char dateTimeBuffer[FORMATTED_DATE_TIME_BUFSIZE];
     if (osdFormatRtcDateTime(&dateTimeBuffer[0])) {
-        displayWrite(osdDisplayPort, 5, 12, DISPLAYPORT_ATTR_NORMAL, dateTimeBuffer);
+        displayWrite(osdDisplayPort, 5, 12, DISPLAYPORT_ATTR_NONE, dateTimeBuffer);
     }
 #endif
 
@@ -494,34 +480,37 @@ void osdInit(displayPort_t *osdDisplayPortToUse, osdDisplayPortDevice_e displayP
 
 static void osdResetStats(void)
 {
-    stats.max_current     = 0;
-    stats.max_speed       = 0;
-    stats.min_voltage     = 5000;
-    stats.end_voltage     = 0;
-    stats.min_rssi        = 99; // percent
-    stats.max_altitude    = 0;
-    stats.max_distance    = 0;
-    stats.armed_time      = 0;
-    stats.max_g_force     = 0;
-    stats.max_esc_temp_ix = 0;
-    stats.max_esc_temp    = 0;
-    stats.max_esc_rpm     = 0;
+    stats.max_current  = 0;
+    stats.max_speed    = 0;
+    stats.min_voltage  = 5000;
+    stats.end_voltage  = 0;
+    stats.min_rssi     = 99; // percent
+    stats.max_altitude = 0;
+    stats.max_distance = 0;
+    stats.armed_time   = 0;
+    stats.max_g_force  = 0;
+    stats.max_esc_temp = 0;
+    stats.max_esc_rpm  = 0;
     stats.min_link_quality = (linkQualitySource == LQ_SOURCE_NONE) ? 99 : 100; // percent
-    stats.min_rssi_dbm = CRSF_RSSI_MAX;
-    stats.min_rsnr = CRSF_SNR_MAX;
+    stats.min_rssi_dbm = CRSF_SNR_MAX;
 }
 
 #if defined(USE_ESC_SENSOR) || defined(USE_DSHOT_TELEMETRY)
 static int32_t getAverageEscRpm(void)
 {
-#ifdef USE_ESC_SENSOR
-    if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
-        return erpmToRpm(osdEscDataCombined->rpm);
-    }
-#endif
 #ifdef USE_DSHOT_TELEMETRY
     if (motorConfig()->dev.useDshotTelemetry) {
-        return getDshotAverageRpm();
+        uint32_t rpm = 0;
+        for (int i = 0; i < getMotorCount(); i++) {
+            rpm += getDshotTelemetry(i);
+        }
+        rpm = rpm / getMotorCount();
+        return rpm * 100 * 2 / motorConfig()->motorPoleCount;
+    }
+#endif
+#ifdef USE_ESC_SENSOR
+    if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
+        return calcEscRpm(osdEscDataCombined->rpm);
     }
 #endif
     return 0;
@@ -588,13 +577,6 @@ static void osdUpdateStats(void)
     }
 #endif
 
-#ifdef USE_RX_RSNR
-    value = getRsnr();
-    if (stats.min_rsnr > value) {
-        stats.min_rsnr = value;
-    }
-#endif
-
 #ifdef USE_GPS
     if (STATE(GPS_FIX) && STATE(GPS_FIX_HOME)) {
         if (stats.max_distance < GPS_distanceToHome) {
@@ -603,26 +585,13 @@ static void osdUpdateStats(void)
     }
 #endif
 
-#if defined(USE_ESC_SENSOR)
+#ifdef USE_ESC_SENSOR
     if (featureIsEnabled(FEATURE_ESC_SENSOR)) {
         value = osdEscDataCombined->temperature;
         if (stats.max_esc_temp < value) {
             stats.max_esc_temp = value;
         }
-    } else
-#endif
-#if defined(USE_DSHOT_TELEMETRY)
-    {
-        // Take max temp from dshot telemetry
-        for (uint8_t k = 0; k < getMotorCount(); k++) {
-            if (dshotTelemetryState.motorState[k].maxTemp > stats.max_esc_temp) {
-                stats.max_esc_temp_ix = k + 1;
-                stats.max_esc_temp = dshotTelemetryState.motorState[k].maxTemp;
-            }
-        }
     }
-#else
-    {}
 #endif
 
 #if defined(USE_ESC_SENSOR) || defined(USE_DSHOT_TELEMETRY)
@@ -679,9 +648,9 @@ static void osdGetBlackboxStatusString(char * buff)
 
 static void osdDisplayStatisticLabel(uint8_t y, const char * text, const char * value)
 {
-    displayWrite(osdDisplayPort, 2, y, DISPLAYPORT_ATTR_NORMAL, text);
-    displayWrite(osdDisplayPort, 20, y, DISPLAYPORT_ATTR_NORMAL, ":");
-    displayWrite(osdDisplayPort, 22, y, DISPLAYPORT_ATTR_NORMAL, value);
+    displayWrite(osdDisplayPort, 2, y, DISPLAYPORT_ATTR_NONE, text);
+    displayWrite(osdDisplayPort, 20, y, DISPLAYPORT_ATTR_NONE, ":");
+    displayWrite(osdDisplayPort, 22, y, DISPLAYPORT_ATTR_NONE, value);
 }
 
 /*
@@ -713,7 +682,7 @@ static bool osdDisplayStat(int statistic, uint8_t displayRow)
             tfp_sprintf(buff, "NO RTC");
         }
 
-        displayWrite(osdDisplayPort, 2, displayRow, DISPLAYPORT_ATTR_NORMAL, buff);
+        displayWrite(osdDisplayPort, 2, displayRow, DISPLAYPORT_ATTR_NONE, buff);
         return true;
     }
 
@@ -800,14 +769,6 @@ static bool osdDisplayStat(int statistic, uint8_t displayRow)
             return true;
         }
         break;
-    
-    case OSD_STAT_WATT_HOURS_DRAWN:
-        if (batteryConfig()->currentMeterSource != CURRENT_METER_NONE) {
-            osdPrintFloat(buff, SYM_NONE, getWhDrawn(), "", 2, true, SYM_NONE);
-            osdDisplayStatisticLabel(displayRow, "USED WATT HOURS", buff);
-            return true;
-        }
-        break;
 
 #ifdef USE_BLACKBOX
     case OSD_STAT_BLACKBOX:
@@ -842,15 +803,9 @@ static bool osdDisplayStat(int statistic, uint8_t displayRow)
 
 #ifdef USE_ESC_SENSOR
     case OSD_STAT_MAX_ESC_TEMP:
-    {
-        uint16_t ix = 0;
-        if (stats.max_esc_temp_ix > 0) {
-            ix = tfp_sprintf(buff, "%d ", stats.max_esc_temp_ix);
-        }
-        tfp_sprintf(buff + ix, "%d%c", osdConvertTemperatureToSelectedUnit(stats.max_esc_temp), osdGetTemperatureSymbolForSelectedUnit());
+        tfp_sprintf(buff, "%d%c", osdConvertTemperatureToSelectedUnit(stats.max_esc_temp), osdGetTemperatureSymbolForSelectedUnit());
         osdDisplayStatisticLabel(displayRow, "MAX ESC TEMP", buff);
         return true;
-    }
 #endif
 
 #if defined(USE_ESC_SENSOR) || defined(USE_DSHOT_TELEMETRY)
@@ -887,13 +842,6 @@ static bool osdDisplayStat(int statistic, uint8_t displayRow)
     case OSD_STAT_MIN_RSSI_DBM:
         tfp_sprintf(buff, "%3d", stats.min_rssi_dbm);
         osdDisplayStatisticLabel(displayRow, "MIN RSSI DBM", buff);
-        return true;
-#endif
-
-#ifdef USE_RX_RSNR
-    case OSD_STAT_MIN_RSNR:
-        tfp_sprintf(buff, "%3d", stats.min_rsnr);
-        osdDisplayStatisticLabel(displayRow, "MIN RSNR", buff);
         return true;
 #endif
 
@@ -965,7 +913,7 @@ static bool osdRenderStatsContinue(void)
         }
 
         if (displayLabel) {
-            displayWrite(osdDisplayPort, 2, osdStatsRenderingState.row++, DISPLAYPORT_ATTR_NORMAL, "  --- STATS ---");
+            displayWrite(osdDisplayPort, 2, osdStatsRenderingState.row++, DISPLAYPORT_ATTR_NONE, "  --- STATS ---");
             return false;
         }
     }
@@ -1068,10 +1016,10 @@ static timeDelta_t osdShowArmed(void)
     } else {
         ret = (REFRESH_1S / 2);
     }
-    displayWrite(osdDisplayPort, 12, 7, DISPLAYPORT_ATTR_NORMAL, "ARMED");
+    displayWrite(osdDisplayPort, 12, 7, DISPLAYPORT_ATTR_NONE, "ARMED");
 
     if (isFlipOverAfterCrashActive()) {
-        displayWrite(osdDisplayPort, 8, 8, DISPLAYPORT_ATTR_NORMAL, CRASH_FLIP_WARNING);
+        displayWrite(osdDisplayPort, 8, 8, DISPLAYPORT_ATTR_NONE, CRASH_FLIP_WARNING);
     }
 
     return ret;
@@ -1084,7 +1032,6 @@ STATIC_UNIT_TESTED bool osdProcessStats1(timeUs_t currentTimeUs)
 {
     static timeUs_t lastTimeUs = 0;
     static timeUs_t osdStatsRefreshTimeUs;
-    static timeUs_t osdAuxRefreshTimeUs = 0;
 
     bool refreshStatsRequired = false;
 
@@ -1135,16 +1082,6 @@ STATIC_UNIT_TESTED bool osdProcessStats1(timeUs_t currentTimeUs)
             }
         }
     }
-
-    if (VISIBLE(osdElementConfig()->item_pos[OSD_AUX_VALUE])) {
-        const uint8_t auxChannel = osdConfig()->aux_channel + NON_AUX_CHANNEL_COUNT - 1;
-        if (currentTimeUs > osdAuxRefreshTimeUs) {
-            // aux channel start after main channels
-            osdAuxValue = (constrain(rcData[auxChannel], PWM_RANGE_MIN, PWM_RANGE_MAX) - PWM_RANGE_MIN) * osdConfig()->aux_scale / PWM_RANGE;
-            osdAuxRefreshTimeUs = currentTimeUs + REFRESH_1S;
-        }
-    }
-
     lastTimeUs = currentTimeUs;
 
     return refreshStatsRequired;
@@ -1178,14 +1115,14 @@ void osdProcessStats2(timeUs_t currentTimeUs)
 #endif
 }
 
-void osdProcessStats3(void)
+void osdProcessStats3()
 {
 #if defined(USE_ACC)
     if (sensors(SENSOR_ACC)
        && (VISIBLE(osdElementConfig()->item_pos[OSD_G_FORCE]) || osdStatGetState(OSD_STAT_MAX_G_FORCE))) {
             // only calculate the G force if the element is visible or the stat is enabled
         for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            const float a = acc.accADC[axis];
+            const float a = accAverage[axis];
             osdGForce += a * a;
         }
         osdGForce = sqrtf(osdGForce) * acc.dev.acc_1G_rec;

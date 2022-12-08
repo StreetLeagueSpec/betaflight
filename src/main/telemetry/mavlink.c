@@ -34,7 +34,6 @@
 #include "common/maths.h"
 #include "common/axis.h"
 #include "common/color.h"
-#include "common/utils.h"
 
 #include "config/feature.h"
 #include "pg/pg.h"
@@ -100,7 +99,7 @@ static const uint8_t mavRates[] = {
     [MAV_DATA_STREAM_EXTRA2] = 10 //2Hz
 };
 
-#define MAXSTREAMS ARRAYLEN(mavRates)
+#define MAXSTREAMS (sizeof(mavRates) / sizeof(mavRates[0]))
 
 static uint8_t mavTicks[MAXSTREAMS];
 static mavlink_message_t mavMsg;
@@ -310,7 +309,7 @@ void mavlinkSendPosition(void)
         gpsFixType = 1;
     }
     else {
-        if (gpsSol.numSat < GPS_MIN_SAT_COUNT) {
+        if (gpsSol.numSat < 5) {
             gpsFixType = 2;
         }
         else {

@@ -237,8 +237,7 @@ bool loadEEPROMFromSDCard(void)
 #endif
 
 #ifdef CONFIG_IN_FILE
-void loadEEPROMFromFile(void)
-{
+void loadEEPROMFromFile(void) {
     FLASH_Unlock(); // load existing config file into eepromData
 }
 #endif

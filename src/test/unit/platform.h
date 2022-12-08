@@ -32,15 +32,15 @@
 #define FAST_DATA_ZERO_INIT
 #define FAST_DATA
 
-#define PID_PROFILE_COUNT 4
-#define CONTROL_RATE_PROFILE_COUNT  4
+#define PID_PROFILE_COUNT 3
+#define CONTROL_RATE_PROFILE_COUNT  6
 #define USE_MAG
 #define USE_BARO
 #define USE_GPS
 #define USE_DASHBOARD
 #define USE_TELEMETRY
 #define USE_LED_STRIP
-#define USE_SERVOS
+// #define USE_SERVOS
 #define USE_TRANSPONDER
 
 typedef enum

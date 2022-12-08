@@ -20,8 +20,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+
 #include <math.h>
 
 #include "platform.h"
@@ -135,7 +135,7 @@ throttleStatus_e calculateThrottleStatus(void)
     doNotRepeat = false; \
 }
 
-void processRcStickPositions(void)
+void processRcStickPositions()
 {
     // time the sticks are maintained
     static int16_t rcDelayMs;
@@ -177,8 +177,7 @@ void processRcStickPositions(void)
             resetTryingToArm();
             // Disarming via ARM BOX
             resetArmingDisabled();
-            const bool switchFailsafe = (failsafeIsActive() && (IS_RC_MODE_ACTIVE(BOXFAILSAFE) || IS_RC_MODE_ACTIVE(BOXGPSRESCUE)));
-            if (ARMING_FLAG(ARMED) && (failsafeIsReceivingRxData() || switchFailsafe)) {
+            if (ARMING_FLAG(ARMED) && rxIsReceivingSignal() && !failsafeIsActive()  ) {
                 rcDisarmTicks++;
                 if (rcDisarmTicks > 3) {
                     disarm(DISARM_REASON_SWITCH);
@@ -411,7 +410,7 @@ void processRcStickPositions(void)
 }
 
 int32_t getRcStickDeflection(int32_t axis, uint16_t midrc) {
-    return MIN(abs((int32_t)rcData[axis] - midrc), 500);
+    return MIN(ABS(rcData[axis] - midrc), 500);
 }
 
 void rcControlsInit(void)

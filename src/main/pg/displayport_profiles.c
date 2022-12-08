@@ -30,7 +30,12 @@
 
 #if defined(USE_MSP_DISPLAYPORT)
 
-PG_REGISTER(displayPortProfile_t, displayPortProfileMsp, PG_DISPLAY_PORT_MSP_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN(displayPortProfile_t, displayPortProfileMsp, PG_DISPLAY_PORT_MSP_CONFIG, 0);
+
+void pgResetFn_displayPortProfileMsp(displayPortProfile_t *displayPortProfile)
+{
+    displayPortProfile->displayPortSerial = SERIAL_PORT_NONE;
+}
 
 #endif
 

@@ -119,7 +119,7 @@ bool spiInit(SPIDevice device)
 #endif
 
     case SPIDEV_3:
-#if defined(USE_SPI_DEVICE_3)
+#if defined(USE_SPI_DEVICE_3) && !defined(STM32F1)
         spiInitDevice(device);
         return true;
 #else
@@ -408,6 +408,11 @@ static void spiIrqHandler(const extDevice_t *dev)
     nextSegment = (busSegment_t *)bus->curSegment + 1;
 
     if (nextSegment->len == 0) {
+        if (!bus->curSegment->negateCS) {
+            // Negate Chip Select if not done so already
+            IOHi(dev->busType_u.spi.csnPin);
+        }
+
         // If a following transaction has been linked, start it
         if (nextSegment->u.link.dev) {
             const extDevice_t *nextDev = nextSegment->u.link.dev;
@@ -415,7 +420,6 @@ static void spiIrqHandler(const extDevice_t *dev)
             // The end of the segment list has been reached
             bus->curSegment = nextSegments;
             nextSegment->u.link.dev = NULL;
-            nextSegment->u.link.segments = NULL;
             spiSequenceStart(nextDev);
         } else {
             // The end of the segment list has been reached, so mark transactions as complete
@@ -540,7 +544,7 @@ bool spiSetBusInstance(extDevice_t *dev, uint32_t device)
     return true;
 }
 
-void spiInitBusDMA(void)
+void spiInitBusDMA()
 {
     uint32_t device;
 #if defined(STM32F4) && defined(USE_DSHOT_BITBANG)

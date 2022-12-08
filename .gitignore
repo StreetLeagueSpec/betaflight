@@ -37,11 +37,8 @@ stm32.mak
 # ozone launch configurations
 /support/ozone
 
-# artefacts for VS Code
+# artefacts for Visual Studio Code
 /.vscode/
-
-# artefacts for Visual Studio 
-/.vs
 
 # artefacts for CLion
 /cmake-build-debug/
@@ -49,9 +46,7 @@ stm32.mak
 
 .vagrant
 ubuntu*.log
+/.vs
 
 # EEPROM image file (created by SITL)
 eeprom.bin
-
-# board scratch space used for automated build API, and developers
-/src/main/board

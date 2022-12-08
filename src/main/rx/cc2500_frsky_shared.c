@@ -154,8 +154,7 @@ const cc2500RegisterConfigElement_t cc2500FrskyXLbtV2Config[] =
     { CC2500_08_PKTCTRL0, 0x05 },
 };
 
-static void initialise(void)
-{
+static void initialise() {
     rxSpiStartupSpeed();
 
     cc2500Reset();

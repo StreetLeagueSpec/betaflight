@@ -64,18 +64,15 @@
 //
 // PID
 //
-
-#define PROFILE_INDEX_STRING_ADDITIONAL_SIZE 5 // Additional symbols for setProfileIndexString(): "2 (NAMENAME)\0"
-
 static uint8_t tmpPidProfileIndex;
 static uint8_t pidProfileIndex;
-static char pidProfileIndexString[MAX_PROFILE_NAME_LENGTH + PROFILE_INDEX_STRING_ADDITIONAL_SIZE];
+static char pidProfileIndexString[MAX_PROFILE_NAME_LENGTH + 5];
 static uint8_t tempPid[3][3];
 static uint16_t tempPidF[3];
 
 static uint8_t tmpRateProfileIndex;
 static uint8_t rateProfileIndex;
-static char rateProfileIndexString[MAX_RATE_PROFILE_NAME_LENGTH + PROFILE_INDEX_STRING_ADDITIONAL_SIZE];
+static char rateProfileIndexString[MAX_RATE_PROFILE_NAME_LENGTH + 5];
 static controlRateConfig_t rateProfile;
 
 static const char * const osdTableThrottleLimitType[] = {
@@ -88,7 +85,7 @@ static const char * const osdTableGyroToUse[] = {
 };
 #endif
 
-static void setProfileIndexString(char *profileString, int profileIndex, const char *profileName)
+static void setProfileIndexString(char *profileString, int profileIndex, char *profileName)
 {
     int charIndex = 0;
     profileString[charIndex++] = '1' + profileIndex;
@@ -111,31 +108,15 @@ static void setProfileIndexString(char *profileString, int profileIndex, const c
     profileString[charIndex] = '\0';
 }
 
-static char pidProfileNames[PID_PROFILE_COUNT][MAX_PROFILE_NAME_LENGTH + PROFILE_INDEX_STRING_ADDITIONAL_SIZE];
-static const char *pidProfileNamePtrs[PID_PROFILE_COUNT];
-
-static char rateProfileNames[CONTROL_RATE_PROFILE_COUNT][MAX_PROFILE_NAME_LENGTH + PROFILE_INDEX_STRING_ADDITIONAL_SIZE];
-static const char *rateProfileNamePtrs[CONTROL_RATE_PROFILE_COUNT];
-
 static const void *cmsx_menuImu_onEnter(displayPort_t *pDisp)
 {
     UNUSED(pDisp);
 
-    for (int i = 0; i < PID_PROFILE_COUNT; i++) {
-        setProfileIndexString(pidProfileNames[i], i, pidProfiles(i)->profileName);
-        pidProfileNamePtrs[i] = pidProfileNames[i];
-    }
-
     pidProfileIndex = getCurrentPidProfileIndex();
-    tmpPidProfileIndex = pidProfileIndex;
-
-    for (int i = 0; i < CONTROL_RATE_PROFILE_COUNT; i++) {
-        setProfileIndexString(rateProfileNames[i], i, controlRateProfilesMutable(i)->profileName);
-        rateProfileNamePtrs[i] = rateProfileNames[i];
-    }
+    tmpPidProfileIndex = pidProfileIndex + 1;
 
     rateProfileIndex = getCurrentControlRateProfileIndex();
-    tmpRateProfileIndex = rateProfileIndex;
+    tmpRateProfileIndex = rateProfileIndex + 1;
 
     return NULL;
 }
@@ -156,7 +137,7 @@ static const void *cmsx_profileIndexOnChange(displayPort_t *displayPort, const v
     UNUSED(displayPort);
     UNUSED(ptr);
 
-    pidProfileIndex = tmpPidProfileIndex;
+    pidProfileIndex = tmpPidProfileIndex - 1;
     changePidProfile(pidProfileIndex);
 
     return NULL;
@@ -167,7 +148,7 @@ static const void *cmsx_rateProfileIndexOnChange(displayPort_t *displayPort, con
     UNUSED(displayPort);
     UNUSED(ptr);
 
-    rateProfileIndex = tmpRateProfileIndex;
+    rateProfileIndex = tmpRateProfileIndex - 1;
     changeControlRateProfile(rateProfileIndex);
 
     return NULL;
@@ -265,8 +246,6 @@ static uint8_t cmsx_simplified_dterm_filter;
 static uint8_t cmsx_simplified_dterm_filter_multiplier;
 static uint8_t cmsx_simplified_gyro_filter;
 static uint8_t cmsx_simplified_gyro_filter_multiplier;
-static uint8_t cmsx_tpa_rate;
-static uint16_t cmsx_tpa_breakpoint;
 
 static const void *cmsx_simplifiedTuningOnEnter(displayPort_t *pDisp)
 {
@@ -431,6 +410,8 @@ static const OSD_Entry cmsx_menuRateProfileEntries[] =
 
     { "THR MID",     OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrMid8,           0,  100,  1} },
     { "THR EXPO",    OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrExpo8,          0,  100,  1} },
+    { "THRPID ATT",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &rateProfile.tpa_rate,         0,  100,  1, 10} },
+    { "TPA BRKPT",   OME_UINT16, NULL, &(OSD_UINT16_t){ &rateProfile.tpa_breakpoint, 1000, 2000, 10} },
 
     { "THR LIM TYPE",OME_TAB,    NULL, &(OSD_TAB_t)   { &rateProfile.throttle_limit_type, THROTTLE_LIMIT_TYPE_COUNT - 1, osdTableThrottleLimitType} },
     { "THR LIM %",   OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.throttle_limit_percent, 25,  100,  1} },
@@ -519,12 +500,21 @@ static CMS_Menu cmsx_menuLaunchControl = {
 static uint8_t  cmsx_angleStrength;
 static uint8_t  cmsx_horizonStrength;
 static uint8_t  cmsx_horizonTransition;
-static uint8_t  cmsx_levelAngleLimit;
 static uint8_t  cmsx_throttleBoost;
 static uint8_t  cmsx_thrustLinearization;
-static uint8_t  cmsx_antiGravityGain;
+static uint16_t cmsx_itermAcceleratorGain;
+static uint16_t cmsx_itermThrottleThreshold;
 static uint8_t  cmsx_motorOutputLimit;
 static int8_t   cmsx_autoProfileCellCount;
+static bool     cmsx_rpm_limiter;
+static bool     cmsx_rpm_limiter_full_linear;
+static uint16_t cmsx_rpm_limit;
+static uint16_t cmsx_rpm_limiter_idle_rpm;
+static uint16_t cmsx_rpm_limiter_accel_limit;
+static uint16_t cmsx_rpm_limiter_p;
+static uint16_t cmsx_rpm_limiter_i;
+static uint16_t cmsx_rpm_limiter_d;
+static uint16_t cmsx_rpm_limiter_decel_limit;
 #ifdef USE_D_MIN
 static uint8_t  cmsx_d_min[XYZ_AXIS_COUNT];
 static uint8_t  cmsx_d_min_gain;
@@ -549,9 +539,6 @@ static uint8_t cmsx_feedforward_smooth_factor;
 static uint8_t cmsx_feedforward_jitter_factor;
 #endif
 
-static uint8_t cmsx_tpa_rate;
-static uint16_t cmsx_tpa_breakpoint;
-
 static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
 {
     UNUSED(pDisp);
@@ -563,14 +550,24 @@ static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
     cmsx_angleStrength =     pidProfile->pid[PID_LEVEL].P;
     cmsx_horizonStrength =   pidProfile->pid[PID_LEVEL].I;
     cmsx_horizonTransition = pidProfile->pid[PID_LEVEL].D;
-    cmsx_levelAngleLimit =   pidProfile->levelAngleLimit;
 
-    cmsx_antiGravityGain   = pidProfile->anti_gravity_gain;
+    cmsx_itermAcceleratorGain   = pidProfile->itermAcceleratorGain;
+    cmsx_itermThrottleThreshold = pidProfile->itermThrottleThreshold;
 
     cmsx_throttleBoost = pidProfile->throttle_boost;
     cmsx_thrustLinearization = pidProfile->thrustLinearization;
     cmsx_motorOutputLimit = pidProfile->motor_output_limit;
     cmsx_autoProfileCellCount = pidProfile->auto_profile_cell_count;
+
+    cmsx_rpm_limiter = mixerConfig()->govenor;
+    cmsx_rpm_limiter_full_linear = mixerConfig()->rpm_linearization;
+    cmsx_rpm_limit = mixerConfig()->govenor_rpm_limit;
+    cmsx_rpm_limiter_accel_limit = mixerConfig()->govenor_acceleration_limit;
+    cmsx_rpm_limiter_decel_limit = mixerConfig()->govenor_deceleration_limit;
+    cmsx_rpm_limiter_idle_rpm = mixerConfig()->govenor_idle_rpm;
+    cmsx_rpm_limiter_p = mixerConfig()->govenor_p;
+    cmsx_rpm_limiter_i = mixerConfig()->govenor_i;
+    cmsx_rpm_limiter_d = mixerConfig()->govenor_d;
 
 #ifdef USE_D_MIN
     for (unsigned i = 0; i < XYZ_AXIS_COUNT; i++) {
@@ -597,8 +594,6 @@ static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
 #ifdef USE_BATTERY_VOLTAGE_SAG_COMPENSATION
     cmsx_vbat_sag_compensation = pidProfile->vbat_sag_compensation;
 #endif
-    cmsx_tpa_rate = pidProfile->tpa_rate;
-    cmsx_tpa_breakpoint = pidProfile->tpa_breakpoint;
 
     return NULL;
 }
@@ -614,14 +609,25 @@ static const void *cmsx_profileOtherOnExit(displayPort_t *pDisp, const OSD_Entry
     pidProfile->pid[PID_LEVEL].P = cmsx_angleStrength;
     pidProfile->pid[PID_LEVEL].I = cmsx_horizonStrength;
     pidProfile->pid[PID_LEVEL].D = cmsx_horizonTransition;
-    pidProfile->levelAngleLimit  = cmsx_levelAngleLimit;
 
-    pidProfile->anti_gravity_gain   = cmsx_antiGravityGain;
+    pidProfile->itermAcceleratorGain   = cmsx_itermAcceleratorGain;
+    pidProfile->itermThrottleThreshold = cmsx_itermThrottleThreshold;
 
     pidProfile->throttle_boost = cmsx_throttleBoost;
     pidProfile->thrustLinearization = cmsx_thrustLinearization;
     pidProfile->motor_output_limit = cmsx_motorOutputLimit;
     pidProfile->auto_profile_cell_count = cmsx_autoProfileCellCount;
+
+    mixerConfig_t *mixerConfigPtr = mixerConfigMutable();
+    mixerConfigPtr->govenor = cmsx_rpm_limiter;
+    mixerConfigPtr->rpm_linearization = cmsx_rpm_limiter_full_linear;
+    mixerConfigPtr->govenor_rpm_limit = cmsx_rpm_limit;
+    mixerConfigPtr->govenor_idle_rpm = cmsx_rpm_limiter_idle_rpm;
+    mixerConfigPtr->govenor_acceleration_limit = cmsx_rpm_limiter_accel_limit;
+    mixerConfigPtr->govenor_p = cmsx_rpm_limiter_p;
+    mixerConfigPtr->govenor_i = cmsx_rpm_limiter_i;
+    mixerConfigPtr->govenor_d = cmsx_rpm_limiter_d;
+    mixerConfigPtr->govenor_deceleration_limit = cmsx_rpm_limiter_decel_limit;
 
 #ifdef USE_D_MIN
     for (unsigned i = 0; i < XYZ_AXIS_COUNT; i++) {
@@ -648,8 +654,6 @@ static const void *cmsx_profileOtherOnExit(displayPort_t *pDisp, const OSD_Entry
 #ifdef USE_BATTERY_VOLTAGE_SAG_COMPENSATION
     pidProfile->vbat_sag_compensation = cmsx_vbat_sag_compensation;
 #endif
-    pidProfile->tpa_rate = cmsx_tpa_rate;
-    pidProfile->tpa_breakpoint = cmsx_tpa_breakpoint;
 
     initEscEndpoints();
     return NULL;
@@ -657,7 +661,16 @@ static const void *cmsx_profileOtherOnExit(displayPort_t *pDisp, const OSD_Entry
 
 static const OSD_Entry cmsx_menuProfileOtherEntries[] = {
     { "-- OTHER PP --", OME_Label, NULL, pidProfileIndexString },
-
+    { "RPM LIMITER", OME_Bool,   NULL, &cmsx_rpm_limiter },
+    { "RPM FULL LINEAR", OME_Bool,   NULL, &cmsx_rpm_limiter_full_linear },
+    { "RPM LIMIT",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limit, 0,  1000,  1} },
+    { "RPM P",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_p, 0,  1000,  1} },
+    { "RPM I",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_i, 0,  1000,  1} },
+    { "RPM D",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_d, 0,  1000,  1} },
+    { "RPM ACCEL LIM",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_accel_limit, 0,  1000,  1} },
+    { "RPM DECEL LIM",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_decel_limit, 0,  1000,  1} },
+    { "RPM IDLE",   OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_rpm_limiter_idle_rpm, 0,  60,  1} },
+    
 #ifdef USE_FEEDFORWARD
     { "FF TRANSITION", OME_FLOAT,  NULL, &(OSD_FLOAT_t)  { &cmsx_feedforward_transition,        0,    100,   1, 10 } },
     { "FF AVERAGING",  OME_TAB,    NULL, &(OSD_TAB_t)    { &cmsx_feedforward_averaging,         4, lookupTableFeedforwardAveraging} },
@@ -668,9 +681,8 @@ static const OSD_Entry cmsx_menuProfileOtherEntries[] = {
     { "ANGLE STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleStrength,          0,    200,   1  }    },
     { "HORZN STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonStrength,        0,    200,   1  }    },
     { "HORZN TRS",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonTransition,      0,    200,   1  }    },
-    { "ANGLE LIMIT", OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_levelAngleLimit,        10,    90,   1  }    },
-
-    { "AG GAIN",     OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_antiGravityGain,   ITERM_ACCELERATOR_GAIN_OFF, ITERM_ACCELERATOR_GAIN_MAX, 1, 100 }    },
+    { "AG GAIN",     OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_itermAcceleratorGain,   ITERM_ACCELERATOR_GAIN_OFF, ITERM_ACCELERATOR_GAIN_MAX, 10 }    },
+    { "AG THR",      OME_UINT16, NULL, &(OSD_UINT16_t) { &cmsx_itermThrottleThreshold, 20,   1000,  1  }    },
 #ifdef USE_THROTTLE_BOOST
     { "THR BOOST",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_throttleBoost,          0,    100,   1  }    },
 #endif
@@ -700,9 +712,6 @@ static const OSD_Entry cmsx_menuProfileOtherEntries[] = {
 #ifdef USE_BATTERY_VOLTAGE_SAG_COMPENSATION
     { "VBAT_SAG_COMP", OME_UINT8,  NULL, &(OSD_UINT8_t) { &cmsx_vbat_sag_compensation, 0, 150, 1 } },
 #endif
-
-    { "TPA RATE",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_tpa_rate,          0,  100,  1, 10} },
-    { "TPA BRKPT",   OME_UINT16, NULL, &(OSD_UINT16_t){ &cmsx_tpa_breakpoint, 1000, 2000, 10} },
 
     { "BACK", OME_Back, NULL, NULL },
     { NULL, OME_END, NULL, NULL}
@@ -861,7 +870,7 @@ static const OSD_Entry cmsx_menuDynFiltEntries[] =
 #ifdef USE_DYN_NOTCH_FILTER
     { "NOTCH COUNT",    OME_UINT8,  NULL, &(OSD_UINT8_t)  { &dynFiltNotchCount,   0, DYN_NOTCH_COUNT_MAX, 1 } },
     { "NOTCH Q",        OME_UINT16, NULL, &(OSD_UINT16_t) { &dynFiltNotchQ,       1, 1000, 1 } },
-    { "NOTCH MIN HZ",   OME_UINT16, NULL, &(OSD_UINT16_t) { &dynFiltNotchMinHz,   20, 250, 1 } },
+    { "NOTCH MIN HZ",   OME_UINT16, NULL, &(OSD_UINT16_t) { &dynFiltNotchMinHz,   60, 250, 1 } },
     { "NOTCH MAX HZ",   OME_UINT16, NULL, &(OSD_UINT16_t) { &dynFiltNotchMaxHz,   200, 1000, 1 } },
 #endif
 
@@ -1032,7 +1041,7 @@ static const OSD_Entry cmsx_menuImuEntries[] =
 {
     { "-- PROFILE --", OME_Label, NULL, NULL},
 
-    {"PID PROF",  OME_TAB,     cmsx_profileIndexOnChange,     &(OSD_TAB_t){&tmpPidProfileIndex, PID_PROFILE_COUNT-1, pidProfileNamePtrs}},
+    {"PID PROF",  OME_UINT8,   cmsx_profileIndexOnChange,     &(OSD_UINT8_t){ &tmpPidProfileIndex, 1, PID_PROFILE_COUNT, 1}},
     {"PID",       OME_Submenu, cmsMenuChange,                 &cmsx_menuPid},
 #ifdef USE_SIMPLIFIED_TUNING
     {"SIMPLIFIED TUNING",   OME_Submenu, cmsMenuChange,                 &cmsx_menuSimplifiedTuning},
@@ -1040,7 +1049,7 @@ static const OSD_Entry cmsx_menuImuEntries[] =
     {"MISC PP",   OME_Submenu, cmsMenuChange,                 &cmsx_menuProfileOther},
     {"FILT PP",   OME_Submenu, cmsMenuChange,                 &cmsx_menuFilterPerProfile},
 
-    {"RATE PROF", OME_TAB,   cmsx_rateProfileIndexOnChange, &(OSD_TAB_t){&tmpRateProfileIndex, CONTROL_RATE_PROFILE_COUNT-1, rateProfileNamePtrs}},
+    {"RATE PROF", OME_UINT8,   cmsx_rateProfileIndexOnChange, &(OSD_UINT8_t){ &tmpRateProfileIndex, 1, CONTROL_RATE_PROFILE_COUNT, 1}},
     {"RATE",      OME_Submenu, cmsMenuChange,                 &cmsx_menuRateProfile},
 
     {"FILT GLB",  OME_Submenu, cmsMenuChange,                 &cmsx_menuFilterGlobal},
