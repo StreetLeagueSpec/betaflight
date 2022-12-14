@@ -452,7 +452,6 @@ static void applyRPMLimiter(void)
 
 static void applyMixToMotors(float motorMix[MAX_SUPPORTED_MOTORS], motorMixer_t *activeMixer)
 {
-    applyRPMLimiter();
     for (int i = 0; i < mixerRuntime.motorCount; i++) {
         float motorOutput = motorOutputMixSign * motorMix[i] + throttle * activeMixer[i].throttle;
         if (!mixerConfig()->govenor) {
@@ -656,7 +655,7 @@ FAST_CODE_NOINLINE void mixTable(timeUs_t currentTimeUs)
     // reduce throttle to offset additional motor output
     throttle = pidCompensateThrustLinearization(throttle);
 #endif
-
+    applyRPMLimiter();
     // Find roll/pitch/yaw desired output
     // ??? Where is the optimal location for this code?
     float motorMix[MAX_SUPPORTED_MOTORS];
