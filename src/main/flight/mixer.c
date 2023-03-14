@@ -345,8 +345,16 @@ static void applyFlipOverAfterCrashModeToMotors(void)
 
 static void applyRPMLimiter(void)
 {
-    //Street League customization
-    float forcedRPMLimit = 130.0f;
+    //Street League spec settings
+    /*float forcedRPMLimit = 130.0f;
+    bool forcedLinearization = true;
+    int forcedMotorPoleCount = 14;*/
+
+    //Unlocked spec settings
+    float forcedRPMLimit = mixerConfig()->govenor_rpm_limit;
+    bool forcedLinearization = mixerConfig()->rpm_linearization;
+    int forcedMotorPoleCount = motorConfig()->motorPoleCount;
+
     //if (mixerConfig()->govenor && motorConfig()->dev.useDshotTelemetry) {
     if (motorConfig()->dev.useDshotTelemetry) {
         float RPM_GOVENOR_LIMIT = 0;
@@ -355,12 +363,8 @@ static void applyRPMLimiter(void)
         float PIDOutput = 0;
         float rcCommandThrottle = (rcCommand[THROTTLE]-1000)/1000.0f;
 
-        //Street League customization
-        //if (mixerConfig()->rpm_linearization) {
-        if (true) {
+        if (forcedLinearization) {
             //scales rpm setpoint between idle rpm and rpm limit based on throttle percent
-            //Street League customization
-            //RPM_GOVENOR_LIMIT = ((mixerConfig()->govenor_rpm_limit - mixerConfig()->govenor_idle_rpm))*100.0f*(rcCommandThrottle) + mixerConfig()->govenor_idle_rpm * 100.0f;
             RPM_GOVENOR_LIMIT = ((forcedRPMLimit - mixerConfig()->govenor_idle_rpm))*100.0f*(rcCommandThrottle) + mixerConfig()->govenor_idle_rpm * 100.0f;
 
             //limit the speed with which the rpm setpoint can increase based on the rpm_limiter_acceleration_limit cli command
@@ -376,8 +380,6 @@ static void applyRPMLimiter(void)
         } 
         else {
             throttle = throttle * mixerRuntime.govenorExpectedThrottleLimit;
-            //Street League customization
-            //RPM_GOVENOR_LIMIT = ((mixerConfig()->govenor_rpm_limit))*100.0f;
             RPM_GOVENOR_LIMIT = ((forcedRPMLimit))*100.0f;
         }
 
@@ -389,7 +391,8 @@ static void applyRPMLimiter(void)
                 motorsSaturated = true;
             }
         }
-        averageRPM = 100 * averageRPM / (getMotorCount()*motorConfig()->motorPoleCount/2.0f);
+
+        averageRPM = 100 * averageRPM / (getMotorCount()*forcedMotorPoleCount/2.0f);
 
         //get the smoothed rpm to avoid d term noise
         averageRPM_smoothed = mixerRuntime.govenorPreviousSmoothedRPM + mixerRuntime.govenorDelayK * (averageRPM - mixerRuntime.govenorPreviousSmoothedRPM); //kinda braindead to convert to rps then back
