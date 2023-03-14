@@ -346,14 +346,14 @@ static void applyFlipOverAfterCrashModeToMotors(void)
 static void applyRPMLimiter(void)
 {
     //Street League spec settings
-    /*float forcedRPMLimit = 130.0f;
+    float forcedRPMLimit = 130.0f;
     bool forcedLinearization = true;
-    int forcedMotorPoleCount = 14;*/
+    int forcedMotorPoleCount = 14;
 
     //Unlocked spec settings
-    float forcedRPMLimit = mixerConfig()->govenor_rpm_limit;
+    /*float forcedRPMLimit = mixerConfig()->govenor_rpm_limit;
     bool forcedLinearization = mixerConfig()->rpm_linearization;
-    int forcedMotorPoleCount = motorConfig()->motorPoleCount;
+    int forcedMotorPoleCount = motorConfig()->motorPoleCount;*/
 
     //if (mixerConfig()->govenor && motorConfig()->dev.useDshotTelemetry) {
     if (motorConfig()->dev.useDshotTelemetry) {
